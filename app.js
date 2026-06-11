@@ -1,0 +1,842 @@
+// Mapbox credentials and access token
+mapboxgl.accessToken = 'pk.eyJ1Ijoia2ltcmFuIiwiYSI6ImNtb3Y1MW80cTAzYnMycG9vODViYTA0MGEifQ.2LUwqbZUGIn6My2VcJZ-7g';
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/kimran/cmpovsnnb001801ssg9s28b1k',
+  center: [126.9780, 37.5665], // Center coordinate (Korea)
+  zoom: 2.5 // Zoom level starting global but visible
+});
+
+// Global variables for active layer management
+let activeLayerId = 'bell-time'; // Updated default layer ID to match new Mapbox Layer ID!
+let clickHandler = null;
+let mouseEnterHandler = null;
+let mouseLeaveHandler = null;
+let hasAutoFocused = false; // Flag to prevent repeated auto-zooming on user interaction
+let readyToAutoFocus = false; // Only true after the intro overlay is dismissed
+let activePopup = null; // Store reference to close popups programmatically
+
+// Audio Management State
+let activeAudio = null;
+let activeAudioTempleId = null;
+
+// Mapping temple IDs or countries to their respective audio files in audio/ folder
+const templeAudioMap = {
+  // Mapping by ID
+  '9':  'audio/south_korea.mp3',   // 대한민국 (조계사)
+  '11': 'audio/bell_old.m4a',      // 일본
+  '19': 'audio/bell_mixkit.wav',   // 네팔
+  '28': 'audio/bell_old.m4a',      // 스리랑카
+  '29': 'audio/india.m4a',         // 인도 ← 새 사운드
+  '32': 'audio/bell_mixkit.wav',   // 아프가니스탄
+  '33': 'audio/bell_old.m4a',      // 라오스
+  '38': 'audio/bell_mixkit.wav',   // 태국
+  '41': 'audio/bell_old.m4a',      // 홍콩
+  '49': 'audio/bell_mixkit.wav',   // 스페인
+
+  // Fallback mappings by country name
+  '대한민국': 'audio/south_korea.mp3',
+  'South Korea': 'audio/south_korea.mp3',
+  '일본': 'audio/bell_old.m4a',
+  'Japan': 'audio/bell_old.m4a',
+  '네팔': 'audio/bell_mixkit.wav',
+  'Nepal': 'audio/bell_mixkit.wav',
+  '스리랑카': 'audio/bell_old.m4a',
+  'Sri Lanka': 'audio/bell_old.m4a',
+  '인도': 'audio/india.m4a',
+  'India': 'audio/india.m4a',
+  '아프가니스탄': 'audio/bell_mixkit.wav',
+  'Afghanistan': 'audio/bell_mixkit.wav',
+  '라오스': 'audio/bell_old.m4a',
+  'Laos': 'audio/bell_old.m4a',
+  '태국': 'audio/bell_mixkit.wav',
+  'Thailand': 'audio/bell_mixkit.wav',
+  '홍콩': 'audio/bell_old.m4a',
+  'Hong Kong': 'audio/bell_old.m4a',
+  '스페인': 'audio/bell_mixkit.wav',
+  'Spain': 'audio/bell_mixkit.wav'
+};
+
+// Global Audio Toggle function
+function toggleAudio(audioUrl, buttonEl, templeIdOrCountry) {
+  // If there's an active audio playing, and it's a different one, stop it first
+  if (activeAudio && activeAudioTempleId !== templeIdOrCountry) {
+    stopCurrentAudio();
+  }
+
+  if (activeAudio && activeAudioTempleId === templeIdOrCountry) {
+    // Toggling the same audio
+    if (activeAudio.paused) {
+      activeAudio.play().then(() => {
+        buttonEl.classList.add('playing');
+        buttonEl.innerHTML = 'Stop Bell Sound';
+      }).catch(err => {
+        console.error('Audio play failed:', err);
+      });
+    } else {
+      activeAudio.pause();
+      buttonEl.classList.remove('playing');
+      buttonEl.innerHTML = 'Play Bell Sound';
+    }
+  } else {
+    // Create new audio instance
+    activeAudio = new Audio(audioUrl);
+    activeAudioTempleId = templeIdOrCountry;
+    
+    // Add event listener to reset button when audio ends
+    activeAudio.addEventListener('ended', () => {
+      buttonEl.classList.remove('playing');
+      buttonEl.innerHTML = 'Play Bell Sound';
+      activeAudio = null;
+      activeAudioTempleId = null;
+    });
+
+    activeAudio.play().then(() => {
+      buttonEl.classList.add('playing');
+      buttonEl.innerHTML = '⏸️ 타종 중 (Stop Bell Sound)';
+    }).catch(err => {
+      console.error('Audio play failed:', err);
+      alert('오디오를 재생할 수 없습니다. 브라우저 보안 설정을 확인하시거나 사용자 상호작용 후 재생을 시도해주세요.');
+    });
+  }
+}
+
+// Function to stop current audio
+function stopCurrentAudio() {
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio = null;
+    activeAudioTempleId = null;
+  }
+  // Reset all play buttons on the page
+  const playBtns = document.querySelectorAll('.audio-play-btn');
+  playBtns.forEach(btn => {
+    btn.classList.remove('playing');
+    btn.innerHTML = 'Play Bell Sound';
+  });
+}
+
+
+// ─────────────────────────────────────────────────────────
+// Intro Overlay + Background Audio on First Interaction
+// ─────────────────────────────────────────────────────────
+(function setupIntroOverlay() {
+  const overlay = document.getElementById('intro-overlay');
+  const enterBtn = document.getElementById('intro-enter-btn');
+  const bgAudioEl = document.getElementById('bg-audio');
+
+  if (!overlay || !enterBtn) return;
+
+  function dismissAndPlay() {
+    // Dismiss overlay with fade
+    overlay.classList.add('hidden');
+
+    // Play the background screen recording audio
+    if (bgAudioEl) {
+      bgAudioEl.play().catch(() => {});
+    }
+
+    // Now trigger the auto-focus to the closest temple
+    triggerAutoFocus();
+  }
+
+  enterBtn.addEventListener('click', dismissAndPlay);
+})();
+
+
+const layerSelect = document.getElementById('layer-select');
+const publishAlert = document.getElementById('publish-alert');
+const settingsTrigger = document.getElementById('settings-trigger');
+const settingsPanel = document.getElementById('settings-panel');
+const detailCard = document.getElementById('temple-detail-card');
+const detailContent = document.getElementById('temple-detail-content');
+const closeCardBtn = document.getElementById('close-card-btn');
+
+// Live Clock DOM Elements
+const clockTime = document.getElementById('clock-time');
+const clockStatus = document.getElementById('clock-status');
+
+// 1. Real-Time KST Clock Updater
+function updateKstClock() {
+  const now = new Date();
+  // Get time formatted to KST (Asia/Seoul)
+  const timeString = now.toLocaleTimeString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  clockTime.textContent = timeString + ' KST';
+}
+setInterval(updateKstClock, 1000);
+updateKstClock(); // Initial fire
+
+// Toggle settings panel
+settingsTrigger.addEventListener('click', () => {
+  settingsPanel.classList.toggle('active');
+});
+
+// Close detail card
+closeCardBtn.addEventListener('click', () => {
+  detailCard.classList.remove('active');
+  stopCurrentAudio();
+});
+
+// Hide detail card on map click in empty spaces
+map.on('click', (e) => {
+  setTimeout(() => {
+    const features = map.queryRenderedFeatures(e.point);
+    const hitTargetLayer = features.some(f => f.layer.id === activeLayerId || f.layer.id === 'bell-time-sound-buddha');
+    if (!hitTargetLayer) {
+      detailCard.classList.remove('active');
+      stopCurrentAudio();
+    }
+  }, 50);
+});
+
+// Once map style loading is complete
+map.on('load', () => {
+  // Load green Buddha image
+  const greenBuddhaSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iNDUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMzNS40NSA0NDcuNTYiPjxwYXRoIGZpbGw9IiMxZmZmOWUiIGQ9Ik0zMzMuNzEsMzg0LjZjLTQuNTMtMTEuMTktMTQuNi0xOC40LTI0LjQ4LTI0LjE2LTQuNDItMy4yOC02LjExLTkuMDktMTAuOTctMTIuMTgtNC4zOC00LjMtMTEuMjUtNi4zMi0xNS44Ny0xMC4zLTExLjM0LTE0LjEzLDMuOTctMjkuMTQsNC4yLTQ0LjU1LS41OS05LjgzLTguNDItMjMuNTctMTAuNzEtMzEuNjctMy40MS0xNS41Mi01Ljg1LTMyLjEyLTguOTgtNDcuOTMtMi42OS0xMy4xOS02LjMyLTI3LjUyLTE3Ljk5LTM1LjczLTE2LjA1LTEzLjYtNDAuNDQtMTcuMzItNTcuNTYtMjguMTgtLjU2LS44OS0uNTUtMS45OS0uNTktMy4wNC4zMi00LjQ3LTEuMTEtOS4yOSwxLjczLTEyLjkxLDIuMzgtMi40Myw3LjU3LTExLjg5LDkuNDgtMTEuMjcsNC4xNSw1LjI1LTQuMjMsMTcuODIsNS45MSwxOC40Myw5LjI5LTMuNjEsMi4xMy0yMC42MiwzLjUyLTI4LjQ4LjUxLTkuNzcsMTEuODYtMjIuMDMsNy4zNy0zMS4yMi0yLjg2LTIuOC01LjczLTMuNy01LTguMjIuMDYtNC43Mi0uMy0xMC4xNy4yNi0xNC43Ljc5LTQuMDYtMS4yLTcuMzEtNC42Ny05LjI1LS41Ny0yLjUxLjUxLTYuMTktNC41MS02LjQ0LTIuMzMtMS4wNy42OC0zLjg4LTMuMDMtNS4yNC0xLjM5LS41Mi0zLjA3LS4wOS0zLjY1LS41LTEuMDktMS4yNy4xNC00LjA3LTEuNC01LjYxLTEuMzYtMS45Ni00LjgxLS45LTYuMjctMi0yLjAxLTQuMjIsMy4xNC01LjY3LS4zLTExLjMzLS41Ni0yLjg5LTIuODYtNC41My01LjA5LTYuMTUtLjk3LTEuMDgtMS4zMy0zLjAxLTIuNjUtMy45My0uODctLjY2LTIuMDMtLjcyLTMuMDUtLjk4LTIuNTktMS4yMy00LjMxLTQuNTMtNi44Mi02LjEzLTUuNjctMi4wMy05Ljk3LS44LTEzLjc5LDMuOTEtMS4zNCwyLjUyLTMuNTksMi4wMy01LjY2LDMuMi0xLjMyLjkyLTEuNjgsMi44NS0yLjY1LDMuOTMtLjg0LDEuMDctMi40OCwxLjUzLTMuNDYsMi42OC0xLjM2LDIuNTQtMyw1LjM5LTIuNzcsOC40Mi4yMSwxLjg1LDIuNiw0Ljg5Ljc0LDYuNDUtMS45LDEtNi4wMS0uMDQtNi44LDMuMDUtLjY2LDEuNTkuMjIsMy41NS0uNzcsNC40OS00LjEyLjYyLTUuNzktLjAyLTUuOTEsNS4zMy0zLjc1LDEuMzItNS40NywxLjM2LTUuMDYsNi4wMy0uMDIuMjktLjA3LjU3LS4yMi44MS02LjM5LDMuNDktNC40OCw4LjI0LTQuMzYsMTQuNTktLjI3LDQuMy41NSw5LjMtLjUyLDEzLjM5LS44NCwxLjgtMy44NCwyLjYxLTQuOSw0Ljc2LTMuMTgsOC45NCw2LDE5Ljc2LDcuNDYsMjguNjksMS40MSw4LjUxLTIuMTMsMTcuNC0uNDMsMjUuODQsMS4wMiw0Ljc0LDYuMjcsNi4yNiw4LjgzLDIuMDksMi41NC00LjYxLTIuMTQtMTEuMzgsMS4zMS0xNS45MywxLjYyLTEuMDEsNy41MSw5LjM4LDkuNTgsMTEuNDIsMi43NCw0LjA5LDEuNjQsMTAuNDMsMS4zLDE1LjI5LTIyLjMxLDE1LjQ3LTYyLjI1LDE3LjQyLTcxLjQ4LDQ4LjE4LTYuNjksMjAuNzgtOC40LDQzLjE2LTEzLjMsNjQuMTctMTQuNzEsMzguNDktMTIuOTEsMjQuMzUtMi4yOCw2Mi41NS43NSwxNS43Ni0xMC42MywxNi4wNC0yMC4wOSwyMy45Ni00Ljc0LDMuMDMtNi41LDguNjQtMTAuNywxMi05LjMyLDUuNDktMTkuMzMsMTIuMzQtMjMuOTksMjIuNy0xMy41LDQxLjM5LDI2LjczLDU2Ljk2LDYxLjE2LDU1LjgsMTMuNjcsMSwyOC4yNi01LjE0LDQxLjI5LTQuNzEsNC45NSwzLjMxLDEwLjU4LDUuMTksMTYuNTYsNi4xOSwzLjQxLjg2LTEuMDEsNi40OSwzLjMsNi44Myw5LjM1LjExLDMzLjM2LjU1LDQ3LjMzLjQ5LDE0Ljk1LTEuMDYsMzIuOTUsMS4zNyw0MC4xMi0xLjUyLDEuMDktMS44NC0xLjI1LTUuMDQsMS4zNy01Ljc1LDQuNS0xLjA1LDkuNDItMS44MiwxMy4yOC00LjI0LDEuOTYtMS4wNywzLjk1LTIuODksNi4zLTIuNDIsMzguMiw5Ljk3LDExNC4zMyw5LjYsMTAwLjM4LTQ4Ljg3bC0uMDYtLjE1WiIvPjwvc3ZnPg==';
+
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 34;
+    canvas.height = 45;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 34, 45);
+    
+    if (!map.getImage('green-buddha-icon')) {
+      map.addImage('green-buddha-icon', canvas);
+    }
+    
+    // Add symbol layer for temples with sound
+    if (!map.getLayer('bell-time-sound-buddha')) {
+      map.addLayer({
+        'id': 'bell-time-sound-buddha',
+        'type': 'symbol',
+        'source': 'composite',
+        'source-layer': 'bell-time',
+        'layout': {
+          'icon-image': 'green-buddha-icon',
+          'icon-size': 0.7,
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        },
+        'filter': [
+          'all',
+          ['has', 'bell_sound_video'],
+          ['!=', ['get', 'bell_sound_video'], ''],
+          ['!=', ['get', 'bell_sound_video'], 'N/A'],
+          ['!=', ['get', 'bell_sound_video'], 'NA']
+        ]
+      });
+
+      // Filter original circle layer to hide circles for sound points
+      map.setFilter('bell-time', [
+        'any',
+        ['!', ['has', 'bell_sound_video']],
+        ['==', ['get', 'bell_sound_video'], ''],
+        ['==', ['get', 'bell_sound_video'], 'N/A'],
+        ['==', ['get', 'bell_sound_video'], 'NA']
+      ]);
+
+      // Re-bind click handlers to include both layers
+      bindInteractiveEvents(activeLayerId);
+    }
+  };
+  img.onerror = (e) => {
+    console.error('Error loading green Buddha SVG in Image element:', e);
+  };
+  img.src = greenBuddhaSvg;
+
+  // Scan Mapbox Style layers dynamically
+  const allLayers = map.getStyle().layers || [];
+  populateLayerSelector(allLayers);
+});
+
+// 2. Auto-focus closest temple once layers are loaded/idle
+map.on('idle', () => {
+  if (readyToAutoFocus && !hasAutoFocused) {
+    const layersToQuery = [activeLayerId];
+    if (map.getLayer('bell-time-sound-buddha')) {
+      layersToQuery.push('bell-time-sound-buddha');
+    }
+    const features = map.queryRenderedFeatures({ layers: layersToQuery });
+    if (features && features.length > 0) {
+      hasAutoFocused = true;
+      findAndFocusClosestTemple(features);
+    }
+  }
+});
+
+// Called externally to kick off auto-focus (after intro overlay is dismissed)
+function triggerAutoFocus() {
+  readyToAutoFocus = true;
+  if (!hasAutoFocused) {
+    const layersToQuery = [activeLayerId];
+    if (map.getLayer('bell-time-sound-buddha')) {
+      layersToQuery.push('bell-time-sound-buddha');
+    }
+    const features = map.queryRenderedFeatures({ layers: layersToQuery });
+    if (features && features.length > 0) {
+      hasAutoFocused = true;
+      findAndFocusClosestTemple(features);
+    }
+    // If features weren't ready yet, the idle handler will catch it
+  }
+}
+
+// Helper to clean temple name (remove parenthesized contents)
+function cleanTempleName(name) {
+  if (!name) return '';
+  return name.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s*（.*?）\s*/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Helper to parse diverse user-entered time formats to minutes of the day
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return null;
+  timeStr = timeStr.toString().trim().toUpperCase();
+  if (timeStr === 'N/A' || timeStr === 'NA' || timeStr === '') return null;
+
+  let hours = 0;
+  let minutes = 0;
+
+  // Check for PM markers in Korean/English
+  let isPm = false;
+  if (timeStr.includes('PM') || timeStr.includes('오후') || timeStr.includes('저녁') || timeStr.includes('밤') || timeStr.includes('야간')) {
+    isPm = true;
+  }
+
+  // Extract digits
+  const match = timeStr.match(/(\d+)(?::(\d+))?/);
+  if (!match) return null;
+
+  hours = parseInt(match[1]);
+  minutes = match[2] ? parseInt(match[2]) : 0;
+
+  if (isPm && hours < 12) {
+    hours += 12;
+  } else if (!isPm && hours === 12 && (timeStr.includes('AM') || timeStr.includes('오전'))) {
+    hours = 0;
+  }
+
+  return hours * 60 + minutes;
+}
+
+// 3. Algorithm: Find closest temple to KST time and fly to it
+function findAndFocusClosestTemple(features) {
+  const now = new Date();
+
+  // Convert current system time to Asia/Seoul KST hours & minutes
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(now);
+  const hourPart = parts.find(p => p.type === 'hour');
+  const minPart = parts.find(p => p.type === 'minute');
+
+  const currentKstHours = hourPart ? parseInt(hourPart.value) : now.getHours();
+  const currentKstMinutes = minPart ? parseInt(minPart.value) : now.getMinutes();
+  const currentKstInMinutes = currentKstHours * 60 + currentKstMinutes;
+
+  let closestFeature = null;
+  let minDifference = 1440; // Max difference in minutes on a 24h clock is 720, so 1440 is a safe inf threshold
+
+  // To filter duplicates (since vector tiles sometimes split features across boundaries)
+  const uniqueNames = new Set();
+
+  features.forEach(f => {
+    const p = f.properties;
+    if (!p || !p.temple_name || uniqueNames.has(p.temple_name)) return;
+    uniqueNames.add(p.temple_name);
+
+    // Read Korean bell tolling time
+    const timeStr = p.bell_time_korea;
+    const templeMinutes = parseTimeToMinutes(timeStr);
+
+    if (templeMinutes !== null) {
+      // Calculate circular absolute difference on 24 hour clock
+      let diff = Math.abs(templeMinutes - currentKstInMinutes);
+      if (diff > 720) {
+        diff = 1440 - diff;
+      }
+
+      if (diff < minDifference) {
+        minDifference = diff;
+        closestFeature = f;
+      }
+    }
+  });
+
+  // Action based on search results
+  if (closestFeature) {
+    const p = closestFeature.properties;
+    const coords = closestFeature.geometry.coordinates;
+
+    // Update bottom center status bar with gorgeous visual message
+    clockStatus.textContent = `현재 우리나라 시간 기준 최인접 타종: ${cleanTempleName(p.temple_name)} (${p.bell_time_korea})`;
+
+    // Fly smoothly to the closest temple on KST basis
+    map.flyTo({
+      center: coords,
+      zoom: 6,
+      duration: 3000,
+      essential: true
+    });
+
+    // Automatically trigger popup and details drawer once flyTo completes
+    setTimeout(() => {
+      showTemplePopupAndCard(p, coords);
+    }, 3200);
+
+  } else {
+    // Graceful Fallback if all temple times are currently N/A or NA
+    clockStatus.textContent = `모든 사찰 타종시각 N/A 상태 (타종시각 입력 시 해당 사찰로 실시간 포커스)`;
+
+    // Fly to regional Korea view so it doesn't look blank
+    map.flyTo({
+      center: [126.9780, 37.5665],
+      zoom: 3.5,
+      duration: 2000,
+      essential: true
+    });
+  }
+}
+
+// Reusable function to display left details card
+function showTemplePopupAndCard(p, coords) {
+  // Close any active popups first
+  const existingPopups = document.querySelectorAll('.mapboxgl-popup');
+  existingPopups.forEach(popup => popup.remove());
+  if (activePopup) {
+    activePopup.remove();
+  }
+
+  // Stop current audio if switching to a different temple/country
+  const targetIdOrCountry = p.id || p.country_ko;
+  if (activeAudio && activeAudioTempleId !== targetIdOrCountry) {
+    stopCurrentAudio();
+  }
+
+  // 1. Render custom map popup (Disabled per user request to hide the small card)
+  /*
+  activePopup = new mapboxgl.Popup({ offset: [0, -10], closeOnClick: true })
+    .setLngLat(coords)
+    .setHTML(`
+      <div class="popup-title">${cleanTempleName(p.temple_name) || '사찰명 없음'}</div>
+      <div class="popup-desc">
+        📍 <b>국가:</b> ${p.country_ko || '알 수 없음'}<br>
+        ⏰ <b>현지타종:</b> ${p.bell_time_local || 'N/A'}<br>
+        ⏰ <b>한국시간:</b> ${p.bell_time_korea || 'N/A'}
+      </div>
+    `)
+    .addTo(map);
+  */
+
+  // 2. Render side details glass card
+  renderSideCard(p, coords);
+}
+
+// Helper to extract layers from loaded style
+function populateLayerSelector(layers) {
+  layerSelect.innerHTML = '';
+
+  if (layers.length === 0) {
+    publishAlert.style.display = 'block';
+    const opt = document.createElement('option');
+    opt.value = 'bell-time';
+    opt.textContent = 'bell-time (기본값)';
+    layerSelect.appendChild(opt);
+    bindInteractiveEvents('bell-time');
+    return;
+  }
+
+  publishAlert.style.display = 'none';
+  let hasCustomPointLayer = false;
+  let detectedDefaultLayer = '';
+
+  // Loop through styles to find custom point/circle/symbol layers
+  layers.forEach(layer => {
+    const isInteractiveType = layer.type === 'circle' || layer.type === 'symbol';
+
+    // Exclude standard Mapbox base elements
+    const isCustomLayer = !layer.id.startsWith('road-') &&
+      !layer.id.startsWith('water') &&
+      !layer.id.startsWith('land') &&
+      !layer.id.startsWith('building') &&
+      !layer.id.startsWith('admin-') &&
+      !layer.id.startsWith('poi-');
+
+    if (isInteractiveType && isCustomLayer) {
+      const opt = document.createElement('option');
+      opt.value = layer.id;
+      opt.textContent = layer.id;
+      layerSelect.appendChild(opt);
+
+      // Look for indicators in IDs to auto-select temple/bell dataset
+      if (layer.id.includes('temple') || layer.id.includes('bell') || layer.id.includes('global') || !detectedDefaultLayer) {
+        detectedDefaultLayer = layer.id;
+      }
+      hasCustomPointLayer = true;
+    }
+  });
+
+  // Fallback if no specific custom layers were parsed cleanly
+  if (!hasCustomPointLayer) {
+    layers.forEach(layer => {
+      const opt = document.createElement('option');
+      opt.value = layer.id;
+      opt.textContent = `${layer.id} (${layer.type})`;
+      layerSelect.appendChild(opt);
+    });
+    detectedDefaultLayer = layers[layers.length - 1]?.id || 'bell-time';
+  }
+
+  // Prioritize exact matching layer if found
+  const hasSpecificDefault = Array.from(layerSelect.options).some(opt => opt.value === 'bell-time');
+  if (hasSpecificDefault) {
+    detectedDefaultLayer = 'bell-time';
+  }
+
+  layerSelect.value = detectedDefaultLayer;
+  bindInteractiveEvents(detectedDefaultLayer);
+
+  // Listen for layer selection changes in settings panel
+  layerSelect.addEventListener('change', (e) => {
+    bindInteractiveEvents(e.target.value);
+  });
+}
+
+// Function to dynamically attach Mapbox events to targeted style layers
+function bindInteractiveEvents(layerId) {
+  const targetLayers = [layerId];
+  if (map.getLayer('bell-time-sound-buddha')) {
+    targetLayers.push('bell-time-sound-buddha');
+  }
+
+  // Unbind old events
+  if (clickHandler && activeLayerId) {
+    map.off('click', activeLayerId, clickHandler);
+    map.off('mouseenter', activeLayerId, mouseEnterHandler);
+    map.off('mouseleave', activeLayerId, mouseLeaveHandler);
+
+    map.off('click', 'bell-time-sound-buddha', clickHandler);
+    map.off('mouseenter', 'bell-time-sound-buddha', mouseEnterHandler);
+    map.off('mouseleave', 'bell-time-sound-buddha', mouseLeaveHandler);
+  }
+
+  activeLayerId = layerId;
+
+  // Define standard click behavior for data point
+  clickHandler = (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: targetLayers });
+    if (!features.length) return;
+
+    const p = features[0].properties;
+    showTemplePopupAndCard(p, e.lngLat);
+  };
+
+  mouseEnterHandler = () => {
+    map.getCanvas().style.cursor = 'pointer';
+  };
+
+  mouseLeaveHandler = () => {
+    map.getCanvas().style.cursor = '';
+  };
+
+  // Bind events to layers
+  targetLayers.forEach(l => {
+    map.on('click', l, clickHandler);
+    map.on('mouseenter', l, mouseEnterHandler);
+    map.on('mouseleave', l, mouseLeaveHandler);
+  });
+}
+
+// Helper to parse markdown-style links [Label](URL) from CSV columns
+function parseMarkdownLinks(mdStr) {
+  if (!mdStr) return [];
+  const links = [];
+  // Matches markdown links [Label](URL)
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let match;
+  while ((match = regex.exec(mdStr)) !== null) {
+    links.push({
+      text: match[0].includes('(') ? match[1] : match[0],
+      url: match[2].trim()
+    });
+  }
+  return links;
+}
+
+// Helper to determine if a URL points directly to an image file or a Wiki file page
+function isImageUrl(url) {
+  if (!url) return false;
+  // Ignore query parameters and hashtags for extension check
+  const cleanUrl = url.split('?')[0].split('#')[0];
+  const isImageExt = /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(cleanUrl);
+  const isWikimediaUpload = url.includes('upload.wikimedia.org');
+  const isWikiFilePage = url.includes('commons.wikimedia.org/wiki/File:') || url.includes('wikipedia.org/wiki/File:');
+  return isImageExt || isWikimediaUpload || isWikiFilePage;
+}
+
+// Helper to extract File:Title from Wikipedia/Wikimedia Commons URL
+function getWikiFileTitle(url) {
+  const match = url.match(/\/wiki\/(File:[^?#]+)/i);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Fetch the direct raw image URL from Wikimedia API and update the img element
+function fetchWikiDirectUrl(fileTitle, imgElement) {
+  const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
+  
+  fetch(apiUrl)
+    .then(response => response.json())
+    .then(data => {
+      const pages = data.query.pages;
+      for (const id in pages) {
+        if (pages[id].imageinfo && pages[id].imageinfo[0]) {
+          const directUrl = pages[id].imageinfo[0].url;
+          imgElement.src = directUrl;
+          
+          // Also update the direct view link in the fallback div
+          const fallbackLink = imgElement.parentElement.querySelector('.img-fallback a');
+          if (fallbackLink) {
+            fallbackLink.href = directUrl;
+          }
+          return;
+        }
+      }
+      // Fail state: show fallback button
+      imgElement.style.display = 'none';
+      const fallbackDiv = imgElement.parentElement.querySelector('.img-fallback');
+      if (fallbackDiv) fallbackDiv.style.display = 'block';
+    })
+    .catch(() => {
+      // Fail state
+      imgElement.style.display = 'none';
+      const fallbackDiv = imgElement.parentElement.querySelector('.img-fallback');
+      if (fallbackDiv) fallbackDiv.style.display = 'block';
+    });
+}
+
+// Beautifully render temple details in the floating glassmorphic card
+function renderSideCard(p, coords) {
+  // Safe extraction of longitude and latitude from coords
+  const lng = coords && coords.lng !== undefined ? coords.lng : (coords ? coords[0] : 126.9780);
+  const lat = coords && coords.lat !== undefined ? coords.lat : (coords ? coords[1] : 37.5665);
+
+  const audioPath = templeAudioMap[p.id] || templeAudioMap[p.country_ko] || templeAudioMap[p.country_en];
+
+  // Dynamic override for Kun Iam Tong / Pou Chai Sim Un local images
+  if (p.temple_name && p.temple_name.includes('관음당') && p.temple_name.includes('보제선원')) {
+    p.heritage_image_link = `[관음당 전경](kun_iam_1.png), [관음당 대웅전](kun_iam_2.png)`;
+  }
+
+  // Parse any photos or external resource links from the heritage_image_link column
+  const imageLinks = parseMarkdownLinks(p.heritage_image_link);
+  let directImages = imageLinks.filter(l => isImageUrl(l.url));
+  const otherPages = imageLinks.filter(l => !isImageUrl(l.url));
+
+  // For Kazakhstan, swap the order of images so the temple picture comes first
+  if (p.country_ko === '카자흐스탄' && directImages.length >= 2) {
+    const temp = directImages[0];
+    directImages[0] = directImages[1];
+    directImages[1] = temp;
+  }
+
+  // For Po Lin Monastery, swap the order of images so the second one comes first
+  if (p.temple_name && p.temple_name.includes('보린사') && directImages.length >= 2) {
+    const temp = directImages[0];
+    directImages[0] = directImages[1];
+    directImages[1] = temp;
+  }
+
+  let middleContentHtml = '';
+
+  if (directImages.length > 0) {
+    middleContentHtml = `
+      <div class="image-box">
+        <div class="carousel-container">
+          <div class="carousel-slides">
+            ${directImages.map((img, i) => {
+              const isWikiFile = img.url.includes('commons.wikimedia.org/wiki/File:') || img.url.includes('wikipedia.org/wiki/File:');
+              const wikiTitle = isWikiFile ? getWikiFileTitle(img.url) : '';
+              return `
+                <div class="carousel-slide ${i === 0 ? 'active' : ''}">
+                  <img class="carousel-image" 
+                       src="${isWikiFile ? 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 200%22><rect width=%22100%%22 height=%22100%%22 fill=%22%23f3f3f3%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%23999999%22>이미지 로드 중...</text></svg>' : img.url}" 
+                       alt="" 
+                       ${isWikiFile ? `data-wiki-file="${wikiTitle}"` : ''} 
+                       onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                  <div class="img-fallback" style="display:none;">
+                    <a href="${img.url}" target="_blank" class="image-link-btn" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 0; border: none; background: rgba(0,0,0,0.04);">
+                      <span>🖼️</span> 이미지 직접 보기
+                    </a>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          ${directImages.length > 1 ? `
+            <button class="carousel-btn prev-btn" type="button">&lsaquo;</button>
+            <button class="carousel-btn next-btn" type="button">&rsaquo;</button>
+            <div class="carousel-dots">
+              ${directImages.map((_, i) => `
+                <span class="carousel-dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+        
+        ${otherPages.length > 0 ? `
+          <div class="image-link-list">
+            ${otherPages.map(page => `
+              <a href="${page.url}" target="_blank" class="image-link-btn">
+                <span>🔗</span> ${page.text}
+              </a>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  } else {
+    // Satellite Map Fallback
+    const satelliteMapUrl = `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/${lng},${lat},16,0/300x200?access_token=${mapboxgl.accessToken}`;
+    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+    middleContentHtml = `
+      <div class="image-box">
+        <div class="carousel-container">
+          <a href="${gmapsUrl}" target="_blank" title="구글 지도 위성 뷰로 보기" style="display: block; width: 100%; height: 100%;">
+            <img class="carousel-image" src="${satelliteMapUrl}" alt="위성지도" style="width: 100%; height: 100%; object-fit: cover;" />
+            <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; pointer-events: none; white-space: nowrap;">
+              🛰️ 위성지도 (구글지도 연동)
+            </div>
+          </a>
+        </div>
+        
+        ${otherPages.length > 0 ? `
+          <div class="image-link-list">
+            ${otherPages.map(page => `
+              <a href="${page.url}" target="_blank" class="image-link-btn">
+                <span>🔗</span> ${page.text}
+              </a>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  detailContent.innerHTML = `
+    <div class="temple-card-icon-container">
+      <svg class="temple-card-buddha-icon" viewBox="0 0 335.45 447.56">
+        <path d="M333.71,384.6c-4.53-11.19-14.6-18.4-24.48-24.16-4.42-3.28-6.11-9.09-10.97-12.18-4.38-4.3-11.25-6.32-15.87-10.3-11.34-14.13,3.97-29.14,4.2-44.55-.59-9.83-8.42-23.57-10.71-31.67-3.41-15.52-5.85-32.12-8.98-47.93-2.69-13.19-6.32-27.52-17.99-35.73-16.05-13.6-40.44-17.32-57.56-28.18-.56-.89-.55-1.99-.59-3.04.32-4.47-1.11-9.29,1.73-12.91,2.38-2.43,7.57-11.89,9.48-11.27,4.15,5.25-4.23,17.82,5.91,18.43,9.29-3.61,2.13-20.62,3.52-28.48.51-9.77,11.86-22.03,7.37-31.22-2.86-2.8-5.73-3.7-5-8.22.06-4.72-.3-10.17.26-14.7.79-4.06-1.2-7.31-4.67-9.25-.57-2.51.51-6.19-4.51-6.44-2.33-1.07.68-3.88-3.03-5.24-1.39-.52-3.07-.09-3.65-.5-1.09-1.27.14-4.07-1.4-5.61-1.36-1.96-4.81-.9-6.27-2-2.01-4.22,3.14-5.67-.3-11.33-.56-2.89-2.86-4.53-5.09-6.15-.97-1.08-1.33-3.01-2.65-3.93-.87-.66-2.03-.72-3.05-.98-2.59-1.23-4.31-4.53-6.82-6.13-5.67-2.03-9.97-.8-13.79,3.91-1.34,2.52-3.59,2.03-5.66,3.2-1.32.92-1.68,2.85-2.65,3.93-.84,1.07-2.48,1.53-3.46,2.68-1.36,2.54-3,5.39-2.77,8.42.21,1.85,2.6,4.89.74,6.45-1.9,1-6.01-.04-6.8,3.05-.66,1.59.22,3.55-.77,4.49-4.12.62-5.79-.02-5.91,5.33-3.75,1.32-5.47,1.36-5.06,6.03-.02.29-.07.57-.22.81-6.39,3.49-4.48,8.24-4.36,14.59-.27,4.3.55,9.3-.52,13.39-.84,1.8-3.84,2.61-4.9,4.76-3.18,8.94,6,19.76,7.46,28.69,1.41,8.51-2.13,17.4-.43,25.84,1.02,4.74,6.27,6.26,8.83,2.09,2.54-4.61-2.14-11.38,1.31-15.93,1.62-1.01,7.51,9.38,9.58,11.42,2.74,4.09,1.64,10.43,1.3,15.29-22.31,15.47-62.25,17.42-71.48,48.18-6.69,20.78-8.4,43.16-13.3,64.17-14.71,38.49-12.91,24.35-2.28,62.55.75,15.76-10.63,16.04-20.09,23.96-4.74,3.03-6.5,8.64-10.7,12-9.32,5.49-19.33,12.34-23.99,22.7-13.5,41.39,26.73,56.96,61.16,55.8,13.67,1,28.26-5.14,41.29-4.71,4.95,3.31,10.58,5.19,16.56,6.19,3.41.86-1.01,6.49,3.3,6.83,9.35.11,33.36.55,47.33.49,14.95-1.06,32.95,1.37,40.12-1.52,1.09-1.84-1.25-5.04,1.37-5.75,4.5-1.05,9.42-1.82,13.28-4.24,1.96-1.07,3.95-2.89,6.3-2.42,38.2,9.97,114.33,9.6,100.38-48.87l-.06-.15Z" />
+      </svg>
+    </div>
+    <div class="temple-title">${cleanTempleName(p.temple_name) || '사찰명 정보 없음'}</div>
+    
+    ${middleContentHtml}
+
+    ${audioPath ? `
+    <div class="audio-section">
+      <button type="button" class="audio-play-btn" id="audio-toggle-btn">        Play Bell Sound</button>
+    </div>
+    ` : ''}
+
+    <div class="time-section">
+      <div class="time-row">
+        <span class="time-label">현지 타종시각</span>
+        <span class="time-value">${p.bell_time_local || '정보 없음'}</span>
+      </div>
+      <div class="time-row">
+        <span class="time-label">한국 표준시각</span>
+        <span class="time-value">${p.bell_time_korea || '정보 없음'}</span>
+      </div>
+    </div>
+  `;
+
+  // Trigger Wikimedia Commons direct URL resolution for any wiki file page images
+  const wikiImages = detailContent.querySelectorAll('img[data-wiki-file]');
+  wikiImages.forEach(img => {
+    const fileTitle = img.getAttribute('data-wiki-file');
+    if (fileTitle) {
+      fetchWikiDirectUrl(fileTitle, img);
+    }
+  });
+
+  // Bind Carousel Event Listeners if there are multiple images
+  const carousel = detailContent.querySelector('.carousel-container');
+  if (carousel) {
+    const slides = carousel.querySelectorAll('.carousel-slide');
+    const prevBtn = carousel.querySelector('.prev-btn');
+    const nextBtn = carousel.querySelector('.next-btn');
+    const dots = carousel.querySelectorAll('.carousel-dot');
+
+    if (slides.length > 1 && prevBtn && nextBtn) {
+      let currentIndex = 0;
+
+      function showSlide(index) {
+        if (index < 0) {
+          currentIndex = slides.length - 1;
+        } else if (index >= slides.length) {
+          currentIndex = 0;
+        } else {
+          currentIndex = index;
+        }
+
+        slides.forEach((slide, idx) => {
+          slide.classList.toggle('active', idx === currentIndex);
+        });
+
+        dots.forEach((dot, idx) => {
+          dot.classList.toggle('active', idx === currentIndex);
+        });
+      }
+
+      prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSlide(currentIndex - 1);
+      });
+
+      nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSlide(currentIndex + 1);
+      });
+
+      dots.forEach((dot) => {
+        dot.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetIndex = parseInt(dot.getAttribute('data-index'));
+          showSlide(targetIndex);
+        });
+      });
+    }
+  }
+
+  // Connect audio button if it exists
+  const audioBtn = detailContent.querySelector('#audio-toggle-btn');
+  if (audioBtn && audioPath) {
+    const templeKey = p.id || p.country_ko;
+    // If this audio is already playing (e.g. card re-rendered while playing), sync the button state!
+    if (activeAudio && !activeAudio.paused && activeAudioTempleId === templeKey) {
+      audioBtn.classList.add('playing');
+      audioBtn.innerHTML = 'Stop Bell Sound';
+    }
+
+    audioBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAudio(audioPath, audioBtn, templeKey);
+    });
+  }
+
+  // Activate with smooth slide & fade animation
+  detailCard.classList.add('active');
+}

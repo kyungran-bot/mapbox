@@ -1,0 +1,47 @@
+{
+  "japan": [
+    "bell_2.m4a",
+    "일본",
+    "Japan"
+  ],
+  "nepal": [
+    "bell_6.m4a",
+    "네팔",
+    "Nepal"
+  ],
+  "sri_lanka": [
+    "bell_4.m4a",
+    "스리랑카",
+    "Sri Lanka"
+  ],
+  "india": [
+    "bell_3.m4a",
+    "인도",
+    "India"
+  ],
+  "afghanistan": [
+    "bell_7.m4a",
+    "아프가니스탄",
+    "Afghanistan"
+  ],
+  "laos": [
+    "bell_1.m4a",
+    "라오스",
+    "Laos"
+  ],
+  "thailand": [
+    "bell_8.wav",
+    "태국",
+    "Thailand"
+  ],
+  "hong_kong": [
+    "bell_5.m4a",
+    "홍콩",
+    "Hong Kong"
+  ],
+  "spain": [
+    "bell_2.m4a",
+    "스페인",
+    "Spain"
+  ]
+}
