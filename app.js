@@ -265,7 +265,7 @@ const initLayersAndIcons = () => {
   const soundIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
 
   // ── Draw Buddha icon synchronously with Canvas 2D (no SVG, no async issues) ──
-  if (!map.getImage('green-buddha-icon')) {
+  if (!map.hasImage('green-buddha-icon')) {
     const S = 40; // canvas size
     const cv = document.createElement('canvas');
     cv.width = S; cv.height = S;
