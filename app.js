@@ -255,28 +255,34 @@ if (map) {
   });
 }
 
+let _buddhaImg = null; // Module-level reference to prevent GC before onload fires
+
 const initLayersAndIcons = () => {
   console.log("initLayersAndIcons execution started! Map exists:", !!map, "Style loaded:", map ? map.isStyleLoaded() : false);
   if (!map) return;
   // Load green Buddha image
   const greenBuddhaSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iNDUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMzNS40NSA0NDcuNTYiPjxwYXRoIGZpbGw9IiMxZmZmOWUiIGQ9Ik0zMzMuNzEsMzg0LjZjLTQuNTMtMTEuMTktMTQuNi0xOC40LTI0LjQ4LTI0LjE2LTQuNDItMy4yOC02LjExLTkuMDktMTAuOTctMTIuMTgtNC4zOC00LjMtMTEuMjUtNi4zMi0xNS44Ny0xMC4zLTExLjM0LTE0LjEzLDMuOTctMjkuMTQsNC4yLTQ0LjU1LS41OS05LjgzLTguNDItMjMuNTctMTAuNzEtMzEuNjctMy40MS0xNS41Mi01Ljg1LTMyLjEyLTguOTgtNDcuOTMtMi42OS0xMy4xOS02LjMyLTI3LjUyLTE3Ljk5LTM1LjczLTE2LjA1LTEzLjYtNDAuNDQtMTcuMzItNTcuNTYtMjguMTgtLjU2LS44OS0uNTUtMS45OS0uNTktMy4wNC4zMi00LjQ3LTEuMTEtOS4yOSwxLjczLTEyLjkxLDIuMzgtMi40Myw3LjU3LTExLjg5LDkuNDgtMTEuMjcsNC4xNSw1LjI1LTQuMjMsMTcuODIsNS45MSwxOC40Myw5LjI5LTMuNjEsMi4xMy0yMC42MiwzLjUyLTI4LjQ4LjUxLTkuNzcsMTEuODYtMjIuMDMsNy4zNy0zMS4yMi0yLjg2LTIuOC01LjczLTMuNy01LTguMjIuMDYtNC43Mi0uMy0xMC4xNy4yNi0xNC43Ljc5LTQuMDYtMS4yLTcuMzEtNC42Ny05LjI1LS41Ny0yLjUxLjUxLTYuMTktNC41MS02LjQ0LTIuMzMtMS4wNy42OC0zLjg4LTMuMDMtNS4yNC0xLjM5LS41Mi0zLjA3LS4wOS0zLjY1LS41LTEuMDktMS4yNy4xNC00LjA3LTEuNC01LjYxLTEuMzYtMS45Ni00LjgxLS45LTYuMjctMi0yLjAxLTQuMjIsMy4xNC01LjY3LS4zLTExLjMzLS41Ni0yLjg5LTIuODYtNC41My01LjA5LTYuMTUtLjk3LTEuMDgtMS4zMy0zLjAxLTIuNjUtMy45My0uODctLjY2LTIuMDMtLjcyLTMuMDUtLjk4LTIuNTktMS4yMy00LjMxLTQuNTMtNi44Mi02LjEzLTUuNjctMi4wMy05Ljk3LS44LTEzLjc5LDMuOTEtMS4zNCwyLjUyLTMuNTksMi4wMy01LjY2LDMuMi0xLjMyLjkyLTEuNjgsMi44NS0yLjY1LDMuOTMtLjg0LDEuMDctMi40OCwxLjUzLTMuNDYsMi42OC0xLjM2LDIuNTQtMyw1LjM5LTIuNzcsOC40Mi4yMSwxLjg1LDIuNiw0Ljg5Ljc0LDYuNDUtMS45LDEtNi4wMS0uMDQtNi44LDMuMDUtLjY2LDEuNTkuMjIsMy41NS0uNzcsNC40OS00LjEyLjYyLTUuNzktLjAyLTUuOTEsNS4zMy0zLjc1LDEuMzItNS40NywxLjM2LTUuMDYsNi4wMy0uMDIuMjktLjA3LjU3LS4yMi44MS02LjM5LDMuNDktNC40OCw4LjI0LTQuMzYsMTQuNTktLjI3LDQuMy41NSw5LjMtLjUyLDEzLjM5LS44NCwxLjgtMy44NCwyLjYxLTQuOSw0Ljc2LTMuMTgsOC45NCw2LDE5Ljc2LDcuNDYsMjguNjksMS40MSw4LjUxLTIuMTMsMTcuNC0uNDMsMjUuODQsMS4wM2wtNC43NCw2LjI3LDYuMjYsOC44MywyLjA5LDIuNTQtNC42MS0yLjE0LTExLjM4LDEuMzEtMTUuOTMsMS42Mi0xLjAxLDcuNTEsOS4zOCw5LjU4LDExLjQyLDIuNzQsNC4wOSwxLjY0LDEwLjQzLDEuMywxNS4yOS0yMi4zMSwxNS40Ny02Mi4yNSwxNy40Mi03MS40OCw0OC4xOC02LjY5LDIwLjc4LTguNCw0My4xNi0xMy4zLDY0LjE3LTE0LjcxLDM4LjQ5LTEyLjkxLDI0LjM1LTIuMjgsNjIuNTUuNzUsMTUuNzYtMTAuNjMsMTYuMDQtMjAuMDksMjMuOTYtNC43NCwzLjAzLTYuNSw4LjY0LTEwLjcsMTItOS4zMiw1LjQ5LTE5LjMzLDEyLjM0LTIzLjk5LDIyLjctMTMuNSw0MS4zOSwyNi43Myw1Ni45Niw2MS4xNiw1NS44LDEzLjY3LDEsMjguMjYtNS4xNCw0MS4yOS00LjcxLDQuOTUsMy4zMSwxMC41OCw1LjE5LDE2LjU2LDYuMTksMy40MSw4Ni0xLjAxLDYuNDksMy4zLDYuODMsOS4zNSwxMSwzMy4zNiw1NSw0Ny4zMyw0OSwxNC45NS0xLjA2LDMyLjk1LDEuMzctNDAuMTItMS41MiwxLjA5LTEuODQtMS4yNS01LjA0LDEuMzctNS43NSw0LjUtMS4wNSw5LjQyLTEuODIsMTMuMjgtNC4yNCwxLjk2LTEuMDcsMy45NS0yLjg5LDYuMy0yLjQyLDM4LjIsOS45NywxMTQuMzMsOS42LDEwMC4zOC00OC44N2wtLjA2LS4xNVoiLz48L3N2Zz4=';
 
-  map.loadImage(greenBuddhaSvg, (error, image) => {
-    if (error) {
-      console.error('Error loading green Buddha SVG image via map.loadImage:', error);
-      return;
-    }
-    console.log("Buddha SVG image loaded successfully via map.loadImage!");
+  // Use canvas approach: map.loadImage does NOT support SVG in Mapbox GL JS v2
+  _buddhaImg = new Image();
+  _buddhaImg.onload = () => {
+    console.log("Buddha SVG loaded via canvas approach!");
     if (!map) return;
 
+    const canvas = document.createElement('canvas');
+    canvas.width = 34;
+    canvas.height = 45;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(_buddhaImg, 0, 0, 34, 45);
+
     if (!map.getImage('green-buddha-icon')) {
-      map.addImage('green-buddha-icon', image);
+      map.addImage('green-buddha-icon', canvas);
     }
 
-    const soundRegisteredIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
-    const soundRegisteredIdsNum = [9, 11, 19, 28, 29, 32, 33, 38, 41, 49];
+    const soundIds = [9, 11, 19, 28, 29, 32, 33, 38, 41, 49];
+    const soundIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
 
-    // Add symbol layer for temples with direct audio files (부처 아이콘으로 표시)
+    // Add symbol layer for temples with direct audio (부처 아이콘으로 표시)
     if (!map.getLayer('bell-time-sound-bell')) {
       map.addLayer({
         'id': 'bell-time-sound-bell',
@@ -284,33 +290,32 @@ const initLayersAndIcons = () => {
         'source': 'composite',
         'source-layer': 'bell-time',
         'layout': {
-          'icon-image': 'green-buddha-icon', // 소리 있는 10개국 = 부처 아이콘
+          'icon-image': 'green-buddha-icon',
           'icon-size': 0.65,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true
         },
         'filter': [
           'any',
-          ['in', ['to-string', ['coalesce', ['id'], '']], ['literal', soundRegisteredIdsStr]],
-          ['in', ['to-string', ['coalesce', ['get', 'id'], '']], ['literal', soundRegisteredIdsStr]],
-          ['in', ['id'], ['literal', soundRegisteredIdsNum]],
-          ['in', ['get', 'id'], ['literal', soundRegisteredIdsNum]]
+          ['match', ['to-number', ['coalesce', ['get', 'id'], -1]], soundIds, true, false],
+          ['match', ['coalesce', ['get', 'id'], ''], soundIdsStr, true, false],
+          ['match', ['id'], soundIds, true, false]
         ]
       });
 
-      // Filter original circle layer to hide circles for sound points (they show Buddha icon instead)
+      // Hide original circles for sound countries (show Buddha icon instead)
       map.setFilter('bell-time', [
         'all',
-        ['!', ['in', ['to-string', ['coalesce', ['id'], '']], ['literal', soundRegisteredIdsStr]]],
-        ['!', ['in', ['to-string', ['coalesce', ['get', 'id'], '']], ['literal', soundRegisteredIdsStr]]],
-        ['!', ['in', ['id'], ['literal', soundRegisteredIdsNum]]],
-        ['!', ['in', ['get', 'id'], ['literal', soundRegisteredIdsNum]]]
+        ['!', ['match', ['to-number', ['coalesce', ['get', 'id'], -1]], soundIds, true, false]],
+        ['!', ['match', ['coalesce', ['get', 'id'], ''], soundIdsStr, true, false]],
+        ['!', ['match', ['id'], soundIds, true, false]]
       ]);
 
-      // ALWAYS re-bind click handlers to include all active layers
       bindInteractiveEvents(activeLayerId);
     }
-  }); // ← closes map.loadImage callback
+  };
+  _buddhaImg.onerror = (e) => console.error('Buddha SVG load error:', e);
+  _buddhaImg.src = greenBuddhaSvg;
 
   // Scan Mapbox Style layers dynamically
   const allLayers = map.getStyle().layers || [];
