@@ -1110,3 +1110,13 @@ select.form-control {
   border-color: rgba(0, 0, 0, 0.2);
   transform: translateY(-1px);
 }
+
+/* Intro Title Flex Layout */
+.intro-title-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  perspective: 1000px;
+  flex-wrap: nowrap;
+}
