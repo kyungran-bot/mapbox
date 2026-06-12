@@ -258,32 +258,45 @@ if (map) {
 let _buddhaImg = null; // Module-level reference to prevent GC before onload fires
 
 const initLayersAndIcons = () => {
-  console.log("initLayersAndIcons execution started! Map exists:", !!map, "Style loaded:", map ? map.isStyleLoaded() : false);
+  console.log("initLayersAndIcons called. map:", !!map);
   if (!map) return;
-  // Load green Buddha image
-  const greenBuddhaSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iNDUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMzNS40NSA0NDcuNTYiPjxwYXRoIGZpbGw9IiMxZmZmOWUiIGQ9Ik0zMzMuNzEsMzg0LjZjLTQuNTMtMTEuMTktMTQuNi0xOC40LTI0LjQ4LTI0LjE2LTQuNDItMy4yOC02LjExLTkuMDktMTAuOTctMTIuMTgtNC4zOC00LjMtMTEuMjUtNi4zMi0xNS44Ny0xMC4zLTExLjM0LTE0LjEzLDMuOTctMjkuMTQsNC4yLTQ0LjU1LS41OS05LjgzLTguNDItMjMuNTctMTAuNzEtMzEuNjctMy40MS0xNS41Mi01Ljg1LTMyLjEyLTguOTgtNDcuOTMtMi42OS0xMy4xOS02LjMyLTI3LjUyLTE3Ljk5LTM1LjczLTE2LjA1LTEzLjYtNDAuNDQtMTcuMzItNTcuNTYtMjguMTgtLjU2LS44OS0uNTUtMS45OS0uNTktMy4wNC4zMi00LjQ3LTEuMTEtOS4yOSwxLjczLTEyLjkxLDIuMzgtMi40Myw3LjU3LTExLjg5LDkuNDgtMTEuMjcsNC4xNSw1LjI1LTQuMjMsMTcuODIsNS45MSwxOC40Myw5LjI5LTMuNjEsMi4xMy0yMC42MiwzLjUyLTI4LjQ4LjUxLTkuNzcsMTEuODYtMjIuMDMsNy4zNy0zMS4yMi0yLjg2LTIuOC01LjczLTMuNy01LTguMjIuMDYtNC43Mi0uMy0xMC4xNy4yNi0xNC43Ljc5LTQuMDYtMS4yLTcuMzEtNC42Ny05LjI1LS41Ny0yLjUxLjUxLTYuMTktNC41MS02LjQ0LTIuMzMtMS4wNy42OC0zLjg4LTMuMDMtNS4yNC0xLjM5LS41Mi0zLjA3LS4wOS0zLjY1LS41LTEuMDktMS4yNy4xNC00LjA3LTEuNC01LjYxLTEuMzYtMS45Ni00LjgxLS45LTYuMjctMi0yLjAxLTQuMjIsMy4xNC01LjY3LS4zLTExLjMzLS41Ni0yLjg5LTIuODYtNC41My01LjA5LTYuMTUtLjk3LTEuMDgtMS4zMy0zLjAxLTIuNjUtMy45My0uODctLjY2LTIuMDMtLjcyLTMuMDUtLjk4LTIuNTktMS4yMy00LjMxLTQuNTMtNi44Mi02LjEzLTUuNjctMi4wMy05Ljk3LS44LTEzLjc5LDMuOTEtMS4zNCwyLjUyLTMuNTksMi4wMy01LjY2LDMuMi0xLjMyLjkyLTEuNjgsMi44NS0yLjY1LDMuOTMtLjg0LDEuMDctMi40OCwxLjUzLTMuNDYsMi42OC0xLjM2LDIuNTQtMyw1LjM5LTIuNzcsOC40Mi4yMSwxLjg1LDIuNiw0Ljg5Ljc0LDYuNDUtMS45LDEtNi4wMS0uMDQtNi44LDMuMDUtLjY2LDEuNTkuMjIsMy41NS0uNzcsNC40OS00LjEyLjYyLTUuNzktLjAyLTUuOTEsNS4zMy0zLjc1LDEuMzItNS40NywxLjM2LTUuMDYsNi4wMy0uMDIuMjktLjA3LjU3LS4yMi44MS02LjM5LDMuNDktNC40OCw4LjI0LTQuMzYsMTQuNTktLjI3LDQuMy41NSw5LjMtLjUyLDEzLjM5LS44NCwxLjgtMy44NCwyLjYxLTQuOSw0Ljc2LTMuMTgsOC45NCw2LDE5Ljc2LDcuNDYsMjguNjksMS40MSw4LjUxLTIuMTMsMTcuNC0uNDMsMjUuODQsMS4wM2wtNC43NCw2LjI3LDYuMjYsOC44MywyLjA5LDIuNTQtNC42MS0yLjE0LTExLjM4LDEuMzEtMTUuOTMsMS42Mi0xLjAxLDcuNTEsOS4zOCw5LjU4LDExLjQyLDIuNzQsNC4wOSwxLjY0LDEwLjQzLDEuMywxNS4yOS0yMi4zMSwxNS40Ny02Mi4yNSwxNy40Mi03MS40OCw0OC4xOC02LjY5LDIwLjc4LTguNCw0My4xNi0xMy4zLDY0LjE3LTE0LjcxLDM4LjQ5LTEyLjkxLDI0LjM1LTIuMjgsNjIuNTUuNzUsMTUuNzYtMTAuNjMsMTYuMDQtMjAuMDksMjMuOTYtNC43NCwzLjAzLTYuNSw4LjY0LTEwLjcsMTItOS4zMiw1LjQ5LTE5LjMzLDEyLjM0LTIzLjk5LDIyLjctMTMuNSw0MS4zOSwyNi43Myw1Ni45Niw2MS4xNiw1NS44LDEzLjY3LDEsMjguMjYtNS4xNCw0MS4yOS00LjcxLDQuOTUsMy4zMSwxMC41OCw1LjE5LDE2LjU2LDYuMTksMy40MSw4Ni0xLjAxLDYuNDksMy4zLDYuODMsOS4zNSwxMSwzMy4zNiw1NSw0Ny4zMyw0OSwxNC45NS0xLjA2LDMyLjk1LDEuMzctNDAuMTItMS41MiwxLjA5LTEuODQtMS4yNS01LjA0LDEuMzctNS43NSw0LjUtMS4wNSw5LjQyLTEuODIsMTMuMjgtNC4yNCwxLjk2LTEuMDcsMy45NS0yLjg5LDYuMy0yLjQyLDM4LjIsOS45NywxMTQuMzMsOS42LDEwMC4zOC00OC44N2wtLjA2LS4xNVoiLz48L3N2Zz4=';
 
-  // Use canvas approach: map.loadImage does NOT support SVG in Mapbox GL JS v2
-  _buddhaImg = new Image();
-  _buddhaImg.onload = () => {
-    console.log("Buddha SVG loaded via canvas approach!");
-    if (!map) return;
+  const soundIds = [9, 11, 19, 28, 29, 32, 33, 38, 41, 49];
+  const soundIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 34;
-    canvas.height = 45;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(_buddhaImg, 0, 0, 34, 45);
+  // ── Draw Buddha icon synchronously with Canvas 2D (no SVG, no async issues) ──
+  if (!map.getImage('green-buddha-icon')) {
+    const S = 40; // canvas size
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const cx = cv.getContext('2d');
+    const G = '#1FFF9E'; // neon green
 
-    if (!map.getImage('green-buddha-icon')) {
-      map.addImage('green-buddha-icon', canvas);
-    }
+    // Outer glow ring
+    cx.fillStyle = 'rgba(31,255,158,0.25)';
+    cx.beginPath(); cx.arc(S/2, S/2, S/2 - 1, 0, Math.PI * 2); cx.fill();
 
-    const soundIds = [9, 11, 19, 28, 29, 32, 33, 38, 41, 49];
-    const soundIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
+    // Main green circle
+    cx.fillStyle = G;
+    cx.beginPath(); cx.arc(S/2, S/2, S/2 - 5, 0, Math.PI * 2); cx.fill();
 
-    // Add symbol layer for temples with direct audio (부처 아이콘으로 표시)
-    if (!map.getLayer('bell-time-sound-bell')) {
+    // Dark inner circle (eye/center)
+    cx.fillStyle = '#0a2d1a';
+    cx.beginPath(); cx.arc(S/2, S/2, S/2 - 13, 0, Math.PI * 2); cx.fill();
+
+    // Small bright dot in center
+    cx.fillStyle = G;
+    cx.beginPath(); cx.arc(S/2, S/2, 4, 0, Math.PI * 2); cx.fill();
+
+    // Convert canvas to ImageData (Mapbox addImage requires ImageData, not HTMLCanvasElement)
+    const imageData = cx.getImageData(0, 0, S, S);
+    map.addImage('green-buddha-icon', imageData);
+    console.log("Buddha icon added. Images now:", map.listImages());
+  }
+
+  // ── Add symbol layer for sound countries (부처 아이콘) ──
+  if (!map.getLayer('bell-time-sound-bell')) {
+    try {
       map.addLayer({
         'id': 'bell-time-sound-bell',
         'type': 'symbol',
@@ -291,7 +304,7 @@ const initLayersAndIcons = () => {
         'source-layer': 'bell-time',
         'layout': {
           'icon-image': 'green-buddha-icon',
-          'icon-size': 0.65,
+          'icon-size': 1.0,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true
         },
@@ -302,20 +315,33 @@ const initLayersAndIcons = () => {
           ['match', ['id'], soundIds, true, false]
         ]
       });
+      console.log("bell-time-sound-bell layer added!");
 
-      // Hide original circles for sound countries (show Buddha icon instead)
+      // Hide circles for sound countries (Buddha icon shows instead)
       map.setFilter('bell-time', [
         'all',
         ['!', ['match', ['to-number', ['coalesce', ['get', 'id'], -1]], soundIds, true, false]],
         ['!', ['match', ['coalesce', ['get', 'id'], ''], soundIdsStr, true, false]],
         ['!', ['match', ['id'], soundIds, true, false]]
       ]);
+      console.log("bell-time filter applied!");
 
       bindInteractiveEvents(activeLayerId);
+    } catch (e) {
+      console.error("Error adding bell-time-sound-bell layer:", e);
     }
-  };
-  _buddhaImg.onerror = (e) => console.error('Buddha SVG load error:', e);
-  _buddhaImg.src = greenBuddhaSvg;
+  } else {
+    console.log("bell-time-sound-bell layer already exists");
+  }
+
+  // ── Log feature diagnostics after a short delay ──
+  setTimeout(() => {
+    const bellFeats = map.queryRenderedFeatures({ layers: ['bell-time'] });
+    const buddhaFeats = map.queryRenderedFeatures({ layers: ['bell-time-sound-bell'] });
+    console.log("bell-time features:", bellFeats.length, bellFeats.slice(0,2).map(f => ({id: f.id, props: f.properties})));
+    console.log("bell-time-sound-bell features:", buddhaFeats.length, buddhaFeats.slice(0,2).map(f => ({id: f.id, props: f.properties})));
+    console.log("All layers:", map.getStyle().layers.map(l => l.id));
+  }, 2000);
 
   // Scan Mapbox Style layers dynamically
   const allLayers = map.getStyle().layers || [];
