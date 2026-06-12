@@ -1,12 +1,17 @@
 // Mapbox credentials and access token
 mapboxgl.accessToken = 'pk.eyJ1Ijoia2ltcmFuIiwiYSI6ImNtb3Y1MW80cTAzYnMycG9vODViYTA0MGEifQ.2LUwqbZUGIn6My2VcJZ-7g';
 
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/kimran/cmpovsnnb001801ssg9s28b1k',
-  center: [126.9780, 37.5665], // Center coordinate (Korea)
-  zoom: 2.5 // Zoom level starting global but visible
-});
+let map = null;
+try {
+  map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/kimran/cmpovsnnb001801ssg9s28b1k',
+    center: [126.9780, 37.5665], // Center coordinate (Korea)
+    zoom: 2.5 // Zoom level starting global but visible
+  });
+} catch (e) {
+  console.error("Mapbox GL JS map initialization failed:", e);
+}
 
 // Global variables for active layer management
 let activeLayerId = 'bell-time'; // Updated default layer ID to match new Mapbox Layer ID!
@@ -20,42 +25,43 @@ let activePopup = null; // Store reference to close popups programmatically
 // Audio Management State
 let activeAudio = null;
 let activeAudioTempleId = null;
+let isManuallyPlaying = false; // Tracks if sound was manually played by clicking "Play Bell Sound"
 
 // Mapping temple IDs or countries to their respective audio files in audio/ folder
 const templeAudioMap = {
   // Mapping by ID
   '9':  'audio/south_korea.mp3',   // 대한민국 (조계사)
-  '11': 'audio/bell_old.m4a',      // 일본
-  '19': 'audio/bell_mixkit.wav',   // 네팔
-  '28': 'audio/bell_old.m4a',      // 스리랑카
-  '29': 'audio/india.m4a',         // 인도 ← 새 사운드
-  '32': 'audio/bell_mixkit.wav',   // 아프가니스탄
-  '33': 'audio/bell_old.m4a',      // 라오스
-  '38': 'audio/bell_mixkit.wav',   // 태국
-  '41': 'audio/bell_old.m4a',      // 홍콩
-  '49': 'audio/bell_mixkit.wav',   // 스페인
+  '11': 'audio/kalsstockmedia-church-temple-bell-gong-dong-sound-effect-3-241681.mp3', // 일본
+  '19': 'audio/freesound_community-temple-bells-74677.mp3', // 네팔
+  '28': 'audio/freesound_community-temple-chiming-bowl-singing-bowl-72080.mp3', // 스리랑카
+  '29': 'audio/freesound_community-indian-temple-bell-68150.mp3', // 인도
+  '32': 'audio/freesound_community-temple-chanting-interior-52687.mp3', // 아프가니스탄
+  '33': 'audio/freesound_community-008978_chanting-people-in-indian-hindu-temple-49126.mp3', // 라오스
+  '38': 'audio/freesound_community-astri-sound-bit-012-suspence-temple-trumpet-humms-22661.mp3', // 태국
+  '41': 'audio/bell_mixkit.wav', // 홍콩 (보린사)
+  '49': 'audio/kalsstockmedia-log-soft-low-frequency-bell-sound-temple-asmr-309725.mp3', // 스페인
 
   // Fallback mappings by country name
   '대한민국': 'audio/south_korea.mp3',
   'South Korea': 'audio/south_korea.mp3',
-  '일본': 'audio/bell_old.m4a',
-  'Japan': 'audio/bell_old.m4a',
-  '네팔': 'audio/bell_mixkit.wav',
-  'Nepal': 'audio/bell_mixkit.wav',
-  '스리랑카': 'audio/bell_old.m4a',
-  'Sri Lanka': 'audio/bell_old.m4a',
-  '인도': 'audio/india.m4a',
-  'India': 'audio/india.m4a',
-  '아프가니스탄': 'audio/bell_mixkit.wav',
-  'Afghanistan': 'audio/bell_mixkit.wav',
-  '라오스': 'audio/bell_old.m4a',
-  'Laos': 'audio/bell_old.m4a',
-  '태국': 'audio/bell_mixkit.wav',
-  'Thailand': 'audio/bell_mixkit.wav',
-  '홍콩': 'audio/bell_old.m4a',
-  'Hong Kong': 'audio/bell_old.m4a',
-  '스페인': 'audio/bell_mixkit.wav',
-  'Spain': 'audio/bell_mixkit.wav'
+  '일본': 'audio/kalsstockmedia-church-temple-bell-gong-dong-sound-effect-3-241681.mp3',
+  'Japan': 'audio/kalsstockmedia-church-temple-bell-gong-dong-sound-effect-3-241681.mp3',
+  '네팔': 'audio/freesound_community-temple-bells-74677.mp3',
+  'Nepal': 'audio/freesound_community-temple-bells-74677.mp3',
+  '스리랑카': 'audio/freesound_community-temple-chiming-bowl-singing-bowl-72080.mp3',
+  'Sri Lanka': 'audio/freesound_community-temple-chiming-bowl-singing-bowl-72080.mp3',
+  '인도': 'audio/freesound_community-indian-temple-bell-68150.mp3',
+  'India': 'audio/freesound_community-indian-temple-bell-68150.mp3',
+  '아프가니스탄': 'audio/freesound_community-temple-chanting-interior-52687.mp3',
+  'Afghanistan': 'audio/freesound_community-temple-chanting-interior-52687.mp3',
+  '라오스': 'audio/freesound_community-008978_chanting-people-in-indian-hindu-temple-49126.mp3',
+  'Laos': 'audio/freesound_community-008978_chanting-people-in-indian-hindu-temple-49126.mp3',
+  '태국': 'audio/freesound_community-astri-sound-bit-012-suspence-temple-trumpet-humms-22661.mp3',
+  'Thailand': 'audio/freesound_community-astri-sound-bit-012-suspence-temple-trumpet-humms-22661.mp3',
+  '홍콩': 'audio/bell_mixkit.wav',
+  'Hong Kong': 'audio/bell_mixkit.wav',
+  '스페인': 'audio/kalsstockmedia-log-soft-low-frequency-bell-sound-temple-asmr-309725.mp3',
+  'Spain': 'audio/kalsstockmedia-log-soft-low-frequency-bell-sound-temple-asmr-309725.mp3'
 };
 
 // Global Audio Toggle function
@@ -68,28 +74,29 @@ function toggleAudio(audioUrl, buttonEl, templeIdOrCountry) {
   if (activeAudio && activeAudioTempleId === templeIdOrCountry) {
     // Toggling the same audio
     if (activeAudio.paused) {
+      isManuallyPlaying = true;
       activeAudio.play().then(() => {
         buttonEl.classList.add('playing');
-        buttonEl.innerHTML = 'Stop Bell Sound';
+        buttonEl.innerHTML = '⏸️ 타종 중 (Stop Bell Sound)';
       }).catch(err => {
         console.error('Audio play failed:', err);
       });
     } else {
-      activeAudio.pause();
-      buttonEl.classList.remove('playing');
-      buttonEl.innerHTML = 'Play Bell Sound';
+      stopCurrentAudio();
     }
   } else {
     // Create new audio instance
     activeAudio = new Audio(audioUrl);
     activeAudioTempleId = templeIdOrCountry;
-    
+    isManuallyPlaying = true;
+
     // Add event listener to reset button when audio ends
     activeAudio.addEventListener('ended', () => {
       buttonEl.classList.remove('playing');
       buttonEl.innerHTML = 'Play Bell Sound';
       activeAudio = null;
       activeAudioTempleId = null;
+      isManuallyPlaying = false;
     });
 
     activeAudio.play().then(() => {
@@ -109,11 +116,48 @@ function stopCurrentAudio() {
     activeAudio = null;
     activeAudioTempleId = null;
   }
+  isManuallyPlaying = false;
   // Reset all play buttons on the page
   const playBtns = document.querySelectorAll('.audio-play-btn');
   playBtns.forEach(btn => {
     btn.classList.remove('playing');
     btn.innerHTML = 'Play Bell Sound';
+  });
+}
+
+// Auto-play sound automatically (such as on hover or focus)
+function playAudioAutomatically(audioUrl, templeIdOrCountry) {
+  if (activeAudio && activeAudioTempleId === templeIdOrCountry) {
+    return;
+  }
+  if (activeAudio) {
+    stopCurrentAudio();
+  }
+
+  activeAudio = new Audio(audioUrl);
+  activeAudioTempleId = templeIdOrCountry;
+  isManuallyPlaying = false;
+
+  const audioBtn = document.getElementById('audio-toggle-btn');
+  const currentCardKey = detailCard.dataset.templeKey;
+
+  activeAudio.addEventListener('ended', () => {
+    if (audioBtn && currentCardKey === templeIdOrCountry.toString()) {
+      audioBtn.classList.remove('playing');
+      audioBtn.innerHTML = 'Play Bell Sound';
+    }
+    activeAudio = null;
+    activeAudioTempleId = null;
+    isManuallyPlaying = false;
+  });
+
+  activeAudio.play().then(() => {
+    if (audioBtn && currentCardKey === templeIdOrCountry.toString()) {
+      audioBtn.classList.add('playing');
+      audioBtn.innerHTML = '⏸️ 타종 중 (Stop Bell Sound)';
+    }
+  }).catch(err => {
+    console.error('Auto play failed:', err);
   });
 }
 
@@ -134,7 +178,16 @@ function stopCurrentAudio() {
 
     // Play the background screen recording audio
     if (bgAudioEl) {
-      bgAudioEl.play().catch(() => {});
+      try {
+        const playPromise = bgAudioEl.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn("Background audio play failed:", err);
+          });
+        }
+      } catch (e) {
+        console.warn("Background audio play error:", e);
+      }
     }
 
     // Now trigger the auto-focus to the closest temple
@@ -185,66 +238,73 @@ closeCardBtn.addEventListener('click', () => {
 });
 
 // Hide detail card on map click in empty spaces
-map.on('click', (e) => {
-  setTimeout(() => {
-    const features = map.queryRenderedFeatures(e.point);
-    const hitTargetLayer = features.some(f => f.layer.id === activeLayerId || f.layer.id === 'bell-time-sound-buddha');
-    if (!hitTargetLayer) {
-      detailCard.classList.remove('active');
-      stopCurrentAudio();
-    }
-  }, 50);
-});
+if (map) {
+  map.on('click', (e) => {
+    setTimeout(() => {
+      if (!map) return;
+      const features = map.queryRenderedFeatures(e.point);
+      const hitTargetLayer = features.some(f => f.layer.id === activeLayerId || f.layer.id === 'bell-time-sound-bell');
+      if (!hitTargetLayer) {
+        detailCard.classList.remove('active');
+        stopCurrentAudio();
+      }
+    }, 50);
+  });
+}
 
 // Once map style loading is complete
 map.on('load', () => {
   // Load green Buddha image
-  const greenBuddhaSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iNDUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMzNS40NSA0NDcuNTYiPjxwYXRoIGZpbGw9IiMxZmZmOWUiIGQ9Ik0zMzMuNzEsMzg0LjZjLTQuNTMtMTEuMTktMTQuNi0xOC40LTI0LjQ4LTI0LjE2LTQuNDItMy4yOC02LjExLTkuMDktMTAuOTctMTIuMTgtNC4zOC00LjMtMTEuMjUtNi4zMi0xNS44Ny0xMC4zLTExLjM0LTE0LjEzLDMuOTctMjkuMTQsNC4yLTQ0LjU1LS41OS05LjgzLTguNDItMjMuNTctMTAuNzEtMzEuNjctMy40MS0xNS41Mi01Ljg1LTMyLjEyLTguOTgtNDcuOTMtMi42OS0xMy4xOS02LjMyLTI3LjUyLTE3Ljk5LTM1LjczLTE2LjA1LTEzLjYtNDAuNDQtMTcuMzItNTcuNTYtMjguMTgtLjU2LS44OS0uNTUtMS45OS0uNTktMy4wNC4zMi00LjQ3LTEuMTEtOS4yOSwxLjczLTEyLjkxLDIuMzgtMi40Myw3LjU3LTExLjg5LDkuNDgtMTEuMjcsNC4xNSw1LjI1LTQuMjMsMTcuODIsNS45MSwxOC40Myw5LjI5LTMuNjEsMi4xMy0yMC42MiwzLjUyLTI4LjQ4LjUxLTkuNzcsMTEuODYtMjIuMDMsNy4zNy0zMS4yMi0yLjg2LTIuOC01LjczLTMuNy01LTguMjIuMDYtNC43Mi0uMy0xMC4xNy4yNi0xNC43Ljc5LTQuMDYtMS4yLTcuMzEtNC42Ny05LjI1LS41Ny0yLjUxLjUxLTYuMTktNC41MS02LjQ0LTIuMzMtMS4wNy42OC0zLjg4LTMuMDMtNS4yNC0xLjM5LS41Mi0zLjA3LS4wOS0zLjY1LS41LTEuMDktMS4yNy4xNC00LjA3LTEuNC01LjYxLTEuMzYtMS45Ni00LjgxLS45LTYuMjctMi0yLjAxLTQuMjIsMy4xNC01LjY3LS4zLTExLjMzLS41Ni0yLjg5LTIuODYtNC41My01LjA5LTYuMTUtLjk3LTEuMDgtMS4zMy0zLjAxLTIuNjUtMy45My0uODctLjY2LTIuMDMtLjcyLTMuMDUtLjk4LTIuNTktMS4yMy00LjMxLTQuNTMtNi44Mi02LjEzLTUuNjctMi4wMy05Ljk3LS44LTEzLjc5LDMuOTEtMS4zNCwyLjUyLTMuNTksMi4wMy01LjY2LDMuMi0xLjMyLjkyLTEuNjgsMi44NS0yLjY1LDMuOTMtLjg0LDEuMDctMi40OCwxLjUzLTMuNDYsMi42OC0xLjM2LDIuNTQtMyw1LjM5LTIuNzcsOC40Mi4yMSwxLjg1LDIuNiw0Ljg5Ljc0LDYuNDUtMS45LDEtNi4wMS0uMDQtNi44LDMuMDUtLjY2LDEuNTkuMjIsMy41NS0uNzcsNC40OS00LjEyLjYyLTUuNzktLjAyLTUuOTEsNS4zMy0zLjc1LDEuMzItNS40NywxLjM2LTUuMDYsNi4wMy0uMDIuMjktLjA3LjU3LS4yMi44MS02LjM5LDMuNDktNC40OCw4LjI0LTQuMzYsMTQuNTktLjI3LDQuMy41NSw5LjMtLjUyLDEzLjM5LS44NCwxLjgtMy44NCwyLjYxLTQuOSw0Ljc2LTMuMTgsOC45NCw2LDE5Ljc2LDcuNDYsMjguNjksMS40MSw4LjUxLTIuMTMsMTcuNC0uNDMsMjUuODQsMS4wMiw0Ljc0LDYuMjcsNi4yNiw4LjgzLDIuMDksMi41NC00LjYxLTIuMTQtMTEuMzgsMS4zMS0xNS45MywxLjYyLTEuMDEsNy41MSw5LjM4LDkuNTgsMTEuNDIsMi43NCw0LjA5LDEuNjQsMTAuNDMsMS4zLDE1LjI5LTIyLjMxLDE1LjQ3LTYyLjI1LDE3LjQyLTcxLjQ4LDQ4LjE4LTYuNjksMjAuNzgtOC40LDQzLjE2LTEzLjMsNjQuMTctMTQuNzEsMzguNDktMTIuOTEsMjQuMzUtMi4yOCw2Mi41NS43NSwxNS43Ni0xMC42MywxNi4wNC0yMC4wOSwyMy45Ni00Ljc0LDMuMDMtNi41LDguNjQtMTAuNywxMi05LjMyLDUuNDktMTkuMzMsMTIuMzQtMjMuOTksMjIuNy0xMy41LDQxLjM5LDI2LjczLDU2Ljk2LDYxLjE2LDU1LjgsMTMuNjcsMSwyOC4yNi01LjE0LDQxLjI5LTQuNzEsNC45NSwzLjMxLDEwLjU4LDUuMTksMTYuNTYsNi4xOSwzLjQxLjg2LTEuMDEsNi40OSwzLjMsNi44Myw5LjM1LjExLDMzLjM2LjU1LDQ3LjMzLjQ5LDE0Ljk1LTEuMDYsMzIuOTUsMS4zNyw0MC4xMi0xLjUyLDEuMDktMS44NC0xLjI1LTUuMDQsMS4zNy01Ljc1LDQuNS0xLjA1LDkuNDItMS44MiwxMy4yOC00LjI0LDEuOTYtMS4wNywzLjk1LTIuODksNi4zLTIuNDIsMzguMiw5Ljk3LDExNC4zMyw5LjYsMTAwLjM4LTQ4Ljg3bC0uMDYtLjE1WiIvPjwvc3ZnPg==';
+  const greenBuddhaSvg = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzQiIGhlaWdodD0iNDUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDMzNS40NSA0NDcuNTYiPjxwYXRoIGZpbGw9IiMxZmZmOWUiIGQ9Ik0zMzMuNzEsMzg0LjZjLTQuNTMtMTEuMTktMTQuNi0xOC40LTI0LjQ4LTI0LjE2LTQuNDItMy4yOC02LjExLTkuMDktMTAuOTctMTIuMTgtNC4zOC00LjMtMTEuMjUtNi4zMi0xNS44Ny0xMC4zLTExLjM0LTE0LjEzLDMuOTctMjkuMTQsNC4yLTQ0LjU1LS41OS05LjgzLTguNDItMjMuNTctMTAuNzEtMzEuNjctMy40MS0xNS41Mi01Ljg1LTMyLjEyLTguOTgtNDcuOTMtMi42OS0xMy4xOS02LjMyLTI3LjUyLTE3Ljk5LTM1LjczLTE2LjA1LTEzLjYtNDAuNDQtMTcuMzItNTcuNTYtMjguMTgtLjU2LS44OS0uNTUtMS45OS0uNTktMy4wNC4zMi00LjQ3LTEuMTEtOS4yOSwxLjczLTEyLjkxLDIuMzgtMi40Myw3LjU3LTExLjg5LDkuNDgtMTEuMjcsNC4xNSw1LjI1LTQuMjMsMTcuODIsNS45MSwxOC40Myw5LjI5LTMuNjEsMi4xMy0yMC42MiwzLjUyLTI4LjQ4LjUxLTkuNzcsMTEuODYtMjIuMDMsNy4zNy0zMS4yMi0yLjg2LTIuOC01LjczLTMuNy01LTguMjIuMDYtNC43Mi0uMy0xMC4xNy4yNi0xNC43Ljc5LTQuMDYtMS4yLTcuMzEtNC42Ny05LjI1LS41Ny0yLjUxLjUxLTYuMTktNC41MS02LjQ0LTIuMzMtMS4wNy42OC0zLjg4LTMuMDMtNS4yNC0xLjM5LS41Mi0zLjA3LS4wOS0zLjY1LS41LTEuMDktMS4yNy4xNC00LjA3LTEuNC01LjYxLTEuMzYtMS45Ni00LjgxLS45LTYuMjctMi0yLjAxLTQuMjIsMy4xNC01LjY3LS4zLTExLjMzLS41Ni0yLjg5LTIuODYtNC41My01LjA5LTYuMTUtLjk3LTEuMDgtMS4zMy0zLjAxLTIuNjUtMy45My0uODctLjY2LTIuMDMtLjcyLTMuMDUtLjk4LTIuNTktMS4yMy00LjMxLTQuNTMtNi44Mi02LjEzLTUuNjctMi4wMy05Ljk3LS44LTEzLjc5LDMuOTEtMS4zNCwyLjUyLTMuNTksMi4wMy01LjY2LDMuMi0xLjMyLjkyLTEuNjgsMi44NS0yLjY1LDMuOTMtLjg0LDEuMDctMi40OCwxLjUzLTMuNDYsMi42OC0xLjM2LDIuNTQtMyw1LjM5LTIuNzcsOC40Mi4yMSwxLjg1LDIuNiw0Ljg5Ljc0LDYuNDUtMS45LDEtNi4wMS0uMDQtNi44LDMuMDUtLjY2LDEuNTkuMjIsMy41NS0uNzcsNC40OS00LjEyLjYyLTUuNzktLjAyLTUuOTEsNS4zMy0zLjc1LDEuMzItNS40NywxLjM2LTUuMDYsNi4wMy0uMDIuMjktLjA3LjU3LS4yMi44MS02LjM5LDMuNDktNC40OCw4LjI0LTQuMzYsMTQuNTktLjI3LDQuMy41NSw5LjMtLjUyLDEzLjM5LS44NCwxLjgtMy44NCwyLjYxLTQuOSw0Ljc2LTMuMTgsOC45NCw2LDE5Ljc2LDcuNDYsMjguNjksMS40MSw4LjUxLTIuMTMsMTcuNC0uNDMsMjUuODQsMS4wM2wtNC43NCw2LjI3LDYuMjYsOC44MywyLjA5LDIuNTQtNC42MS0yLjE0LTExLjM4LDEuMzEtMTUuOTMsMS42Mi0xLjAxLDcuNTEsOS4zOCw5LjU4LDExLjQyLDIuNzQsNC4wOSwxLjY0LDEwLjQzLDEuMywxNS4yOS0yMi4zMSwxNS40Ny02Mi4yNSwxNy40Mi03MS40OCw0OC4xOC02LjY5LDIwLjc4LTguNCw0My4xNi0xMy4zLDY0LjE3LTE0LjcxLDM4LjQ5LTEyLjkxLDI0LjM1LTIuMjgsNjIuNTUuNzUsMTUuNzYtMTAuNjMsMTYuMDQtMjAuMDksMjMuOTYtNC43NCwzLjAzLTYuNSw4LjY0LTEwLjcsMTItOS4zMiw1LjQ5LTE5LjMzLDEyLjM0LTIzLjk5LDIyLjctMTMuNSw0MS4zOSwyNi43Myw1Ni45Niw2MS4xNiw1NS44LDEzLjY3LDEsMjguMjYtNS4xNCw0MS4yOS00LjcxLDQuOTUsMy4zMSwxMC41OCw1LjE5LDE2LjU2LDYuMTksMy40MSw4Ni0xLjAxLDYuNDksMy4zLDYuODMsOS4zNSwxMSwzMy4zNiw1NSw0Ny4zMyw0OSwxNC45NS0xLjA2LDMyLjk1LDEuMzctNDAuMTItMS41MiwxLjA5LTEuODQtMS4yNS01LjA0LDEuMzctNS43NSw0LjUtMS4wNSw5LjQyLTEuODIsMTMuMjgtNC4yNCwxLjk2LTEuMDcsMy45NS0yLjg5LDYuMy0yLjQyLDM4LjIsOS45NywxMTQuMzMsOS42LDEwMC4zOC00OC44N2wtLjA2LS4xNVoiLz48L3N2Zz4=';
 
   const img = new Image();
   img.onload = () => {
+    if (!map) return;
     const canvas = document.createElement('canvas');
     canvas.width = 34;
     canvas.height = 45;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, 34, 45);
-    
+
     if (!map.getImage('green-buddha-icon')) {
       map.addImage('green-buddha-icon', canvas);
     }
-    
-    // Add symbol layer for temples with sound
-    if (!map.getLayer('bell-time-sound-buddha')) {
+
+    const soundRegisteredIdsStr = ['9', '11', '19', '28', '29', '32', '33', '38', '41', '49'];
+    const soundRegisteredIdsNum = [9, 11, 19, 28, 29, 32, 33, 38, 41, 49];
+
+    // Add symbol layer for temples with direct audio files (부처 아이콘으로 표시)
+    if (!map.getLayer('bell-time-sound-bell')) {
       map.addLayer({
-        'id': 'bell-time-sound-buddha',
+        'id': 'bell-time-sound-bell',
         'type': 'symbol',
         'source': 'composite',
         'source-layer': 'bell-time',
         'layout': {
-          'icon-image': 'green-buddha-icon',
-          'icon-size': 0.7,
+          'icon-image': 'green-buddha-icon', // 소리 있는 10개국 = 부처 아이콘
+          'icon-size': 0.65,
           'icon-allow-overlap': true,
           'icon-ignore-placement': true
         },
         'filter': [
-          'all',
-          ['has', 'bell_sound_video'],
-          ['!=', ['get', 'bell_sound_video'], ''],
-          ['!=', ['get', 'bell_sound_video'], 'N/A'],
-          ['!=', ['get', 'bell_sound_video'], 'NA']
+          'any',
+          ['in', ['to-string', ['coalesce', ['id'], '']], ['literal', soundRegisteredIdsStr]],
+          ['in', ['to-string', ['coalesce', ['get', 'id'], '']], ['literal', soundRegisteredIdsStr]],
+          ['in', ['id'], ['literal', soundRegisteredIdsNum]],
+          ['in', ['get', 'id'], ['literal', soundRegisteredIdsNum]]
         ]
       });
 
-      // Filter original circle layer to hide circles for sound points
+      // Filter original circle layer to hide circles for sound points (they show Buddha icon instead)
       map.setFilter('bell-time', [
-        'any',
-        ['!', ['has', 'bell_sound_video']],
-        ['==', ['get', 'bell_sound_video'], ''],
-        ['==', ['get', 'bell_sound_video'], 'N/A'],
-        ['==', ['get', 'bell_sound_video'], 'NA']
+        'all',
+        ['!', ['in', ['to-string', ['coalesce', ['id'], '']], ['literal', soundRegisteredIdsStr]]],
+        ['!', ['in', ['to-string', ['coalesce', ['get', 'id'], '']], ['literal', soundRegisteredIdsStr]]],
+        ['!', ['in', ['id'], ['literal', soundRegisteredIdsNum]]],
+        ['!', ['in', ['get', 'id'], ['literal', soundRegisteredIdsNum]]]
       ]);
 
-      // Re-bind click handlers to include both layers
+      // ALWAYS re-bind click handlers to include all active layers
       bindInteractiveEvents(activeLayerId);
     }
   };
@@ -259,32 +319,43 @@ map.on('load', () => {
 });
 
 // 2. Auto-focus closest temple once layers are loaded/idle
-map.on('idle', () => {
-  if (readyToAutoFocus && !hasAutoFocused) {
-    const layersToQuery = [activeLayerId];
-    if (map.getLayer('bell-time-sound-buddha')) {
-      layersToQuery.push('bell-time-sound-buddha');
+if (map) {
+  map.on('idle', () => {
+    if (readyToAutoFocus && !hasAutoFocused && map) {
+      try {
+        const layersToQuery = [activeLayerId];
+        if (map.getLayer('bell-time-sound-bell')) {
+          layersToQuery.push('bell-time-sound-bell');
+        }
+        const features = map.queryRenderedFeatures({ layers: layersToQuery });
+        if (features && features.length > 0) {
+          hasAutoFocused = true;
+          findAndFocusClosestTemple(features);
+        }
+      } catch (e) {
+        console.warn("Auto-focus on idle check failed:", e);
+      }
     }
-    const features = map.queryRenderedFeatures({ layers: layersToQuery });
-    if (features && features.length > 0) {
-      hasAutoFocused = true;
-      findAndFocusClosestTemple(features);
-    }
-  }
-});
+  });
+}
 
 // Called externally to kick off auto-focus (after intro overlay is dismissed)
 function triggerAutoFocus() {
   readyToAutoFocus = true;
+  if (!map) return;
   if (!hasAutoFocused) {
-    const layersToQuery = [activeLayerId];
-    if (map.getLayer('bell-time-sound-buddha')) {
-      layersToQuery.push('bell-time-sound-buddha');
-    }
-    const features = map.queryRenderedFeatures({ layers: layersToQuery });
-    if (features && features.length > 0) {
-      hasAutoFocused = true;
-      findAndFocusClosestTemple(features);
+    try {
+      const layersToQuery = [activeLayerId];
+      if (map.getLayer('bell-time-sound-bell')) {
+        layersToQuery.push('bell-time-sound-bell');
+      }
+      const features = map.queryRenderedFeatures({ layers: layersToQuery });
+      if (features && features.length > 0) {
+        hasAutoFocused = true;
+        findAndFocusClosestTemple(features);
+      }
+    } catch (e) {
+      console.warn("Auto-focus during overlay dismissal skipped:", e);
     }
     // If features weren't ready yet, the idle handler will catch it
   }
@@ -425,23 +496,19 @@ function showTemplePopupAndCard(p, coords) {
     stopCurrentAudio();
   }
 
-  // 1. Render custom map popup (Disabled per user request to hide the small card)
-  /*
-  activePopup = new mapboxgl.Popup({ offset: [0, -10], closeOnClick: true })
-    .setLngLat(coords)
-    .setHTML(`
-      <div class="popup-title">${cleanTempleName(p.temple_name) || '사찰명 없음'}</div>
-      <div class="popup-desc">
-        📍 <b>국가:</b> ${p.country_ko || '알 수 없음'}<br>
-        ⏰ <b>현지타종:</b> ${p.bell_time_local || 'N/A'}<br>
-        ⏰ <b>한국시간:</b> ${p.bell_time_korea || 'N/A'}
-      </div>
-    `)
-    .addTo(map);
-  */
+  // Save the target temple ID or country key
+  detailCard.dataset.templeKey = targetIdOrCountry;
 
   // 2. Render side details glass card
   renderSideCard(p, coords);
+
+  // Auto-play sound if it exists, is not pending, and not already manually playing
+  const audioPath = templeAudioMap[p.id] || templeAudioMap[p.country_ko] || templeAudioMap[p.country_en];
+  if (audioPath && audioPath !== 'pending') {
+    if (!isManuallyPlaying) {
+      playAudioAutomatically(audioPath, targetIdOrCountry);
+    }
+  }
 }
 
 // Helper to extract layers from loaded style
@@ -516,9 +583,10 @@ function populateLayerSelector(layers) {
 
 // Function to dynamically attach Mapbox events to targeted style layers
 function bindInteractiveEvents(layerId) {
+  if (!map) return;
   const targetLayers = [layerId];
-  if (map.getLayer('bell-time-sound-buddha')) {
-    targetLayers.push('bell-time-sound-buddha');
+  if (map.getLayer('bell-time-sound-bell')) {
+    targetLayers.push('bell-time-sound-bell');
   }
 
   // Unbind old events
@@ -527,9 +595,9 @@ function bindInteractiveEvents(layerId) {
     map.off('mouseenter', activeLayerId, mouseEnterHandler);
     map.off('mouseleave', activeLayerId, mouseLeaveHandler);
 
-    map.off('click', 'bell-time-sound-buddha', clickHandler);
-    map.off('mouseenter', 'bell-time-sound-buddha', mouseEnterHandler);
-    map.off('mouseleave', 'bell-time-sound-buddha', mouseLeaveHandler);
+    map.off('click', 'bell-time-sound-bell', clickHandler);
+    map.off('mouseenter', 'bell-time-sound-bell', mouseEnterHandler);
+    map.off('mouseleave', 'bell-time-sound-bell', mouseLeaveHandler);
   }
 
   activeLayerId = layerId;
@@ -543,12 +611,35 @@ function bindInteractiveEvents(layerId) {
     showTemplePopupAndCard(p, e.lngLat);
   };
 
-  mouseEnterHandler = () => {
+  mouseEnterHandler = (e) => {
     map.getCanvas().style.cursor = 'pointer';
+
+    const features = map.queryRenderedFeatures(e.point, { layers: targetLayers });
+    if (!features.length) return;
+    const p = features[0].properties;
+    const templeKey = p.id || p.country_ko;
+    const audioPath = templeAudioMap[p.id] || templeAudioMap[p.country_ko] || templeAudioMap[p.country_en];
+
+    // If we're already manually playing sound, don't interrupt it
+    if (activeAudio && isManuallyPlaying) return;
+
+    // If there is an active audio but it's for a different temple/country, stop it first
+    if (activeAudio && activeAudioTempleId !== templeKey) {
+      stopCurrentAudio();
+    }
+
+    // Automatically play if audio exists and is not pending
+    if (audioPath && audioPath !== 'pending') {
+      playAudioAutomatically(audioPath, templeKey);
+    }
   };
 
   mouseLeaveHandler = () => {
     map.getCanvas().style.cursor = '';
+    // Only stop if the active audio is auto-played (not manually playing)
+    if (activeAudio && !isManuallyPlaying) {
+      stopCurrentAudio();
+    }
   };
 
   // Bind events to layers
@@ -595,7 +686,7 @@ function getWikiFileTitle(url) {
 // Fetch the direct raw image URL from Wikimedia API and update the img element
 function fetchWikiDirectUrl(fileTitle, imgElement) {
   const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(fileTitle)}&prop=imageinfo&iiprop=url&format=json&origin=*`;
-  
+
   fetch(apiUrl)
     .then(response => response.json())
     .then(data => {
@@ -604,7 +695,7 @@ function fetchWikiDirectUrl(fileTitle, imgElement) {
         if (pages[id].imageinfo && pages[id].imageinfo[0]) {
           const directUrl = pages[id].imageinfo[0].url;
           imgElement.src = directUrl;
-          
+
           // Also update the direct view link in the fallback div
           const fallbackLink = imgElement.parentElement.querySelector('.img-fallback a');
           if (fallbackLink) {
@@ -658,6 +749,38 @@ function renderSideCard(p, coords) {
     directImages[1] = temp;
   }
 
+  // Setup image overrides for '봉은사', '불국사', and 'Paro Taktsang'
+  if (p.temple_name && p.temple_name.includes('봉은사')) {
+    directImages = [{ text: '봉은사 전경', url: 'bongeunsa.png' }];
+  } else if (p.temple_name && p.temple_name.includes('불국사')) {
+    directImages = [{ text: '불국사 전경', url: 'bulguksa.jpg' }];
+  } else if (p.temple_name && p.temple_name.includes('Taktsang')) {
+    directImages = [{ text: 'Paro Taktsang (Tiger\'s Nest Monastery)', url: 'images/paro_taktsang.jpg' }];
+  }
+
+  // Safe parsing of buddhist_philosophy field (supports JSON and raw text)
+  let phil = {
+    tradition: 'Buddhist Philosophy',
+    quote: 'Peace comes from within. Do not seek it without.',
+    body: '',
+    keywords: []
+  };
+
+  if (p.buddhist_philosophy) {
+    try {
+      const parsed = JSON.parse(p.buddhist_philosophy);
+      phil = {
+        tradition: parsed.tradition || 'Buddhist Philosophy',
+        quote: parsed.quote || 'Peace comes from within. Do not seek it without.',
+        body: parsed.body || '',
+        keywords: parsed.keywords || []
+      };
+    } catch (e) {
+      phil.body = p.buddhist_philosophy;
+      phil.keywords = [p.country_ko || '불교'].filter(Boolean);
+    }
+  }
+
   let middleContentHtml = '';
 
   if (directImages.length > 0) {
@@ -666,9 +789,9 @@ function renderSideCard(p, coords) {
         <div class="carousel-container">
           <div class="carousel-slides">
             ${directImages.map((img, i) => {
-              const isWikiFile = img.url.includes('commons.wikimedia.org/wiki/File:') || img.url.includes('wikipedia.org/wiki/File:');
-              const wikiTitle = isWikiFile ? getWikiFileTitle(img.url) : '';
-              return `
+      const isWikiFile = img.url.includes('commons.wikimedia.org/wiki/File:') || img.url.includes('wikipedia.org/wiki/File:');
+      const wikiTitle = isWikiFile ? getWikiFileTitle(img.url) : '';
+      return `
                 <div class="carousel-slide ${i === 0 ? 'active' : ''}">
                   <img class="carousel-image" 
                        src="${isWikiFile ? 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 200%22><rect width=%22100%%22 height=%22100%%22 fill=%22%23f3f3f3%22/><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%23999999%22>이미지 로드 중...</text></svg>' : img.url}" 
@@ -682,7 +805,7 @@ function renderSideCard(p, coords) {
                   </div>
                 </div>
               `;
-            }).join('')}
+    }).join('')}
           </div>
           ${directImages.length > 1 ? `
             <button class="carousel-btn prev-btn" type="button">&lsaquo;</button>
@@ -735,33 +858,123 @@ function renderSideCard(p, coords) {
     `;
   }
 
-  detailContent.innerHTML = `
-    <div class="temple-card-icon-container">
-      <svg class="temple-card-buddha-icon" viewBox="0 0 335.45 447.56">
-        <path d="M333.71,384.6c-4.53-11.19-14.6-18.4-24.48-24.16-4.42-3.28-6.11-9.09-10.97-12.18-4.38-4.3-11.25-6.32-15.87-10.3-11.34-14.13,3.97-29.14,4.2-44.55-.59-9.83-8.42-23.57-10.71-31.67-3.41-15.52-5.85-32.12-8.98-47.93-2.69-13.19-6.32-27.52-17.99-35.73-16.05-13.6-40.44-17.32-57.56-28.18-.56-.89-.55-1.99-.59-3.04.32-4.47-1.11-9.29,1.73-12.91,2.38-2.43,7.57-11.89,9.48-11.27,4.15,5.25-4.23,17.82,5.91,18.43,9.29-3.61,2.13-20.62,3.52-28.48.51-9.77,11.86-22.03,7.37-31.22-2.86-2.8-5.73-3.7-5-8.22.06-4.72-.3-10.17.26-14.7.79-4.06-1.2-7.31-4.67-9.25-.57-2.51.51-6.19-4.51-6.44-2.33-1.07.68-3.88-3.03-5.24-1.39-.52-3.07-.09-3.65-.5-1.09-1.27.14-4.07-1.4-5.61-1.36-1.96-4.81-.9-6.27-2-2.01-4.22,3.14-5.67-.3-11.33-.56-2.89-2.86-4.53-5.09-6.15-.97-1.08-1.33-3.01-2.65-3.93-.87-.66-2.03-.72-3.05-.98-2.59-1.23-4.31-4.53-6.82-6.13-5.67-2.03-9.97-.8-13.79,3.91-1.34,2.52-3.59,2.03-5.66,3.2-1.32.92-1.68,2.85-2.65,3.93-.84,1.07-2.48,1.53-3.46,2.68-1.36,2.54-3,5.39-2.77,8.42.21,1.85,2.6,4.89.74,6.45-1.9,1-6.01-.04-6.8,3.05-.66,1.59.22,3.55-.77,4.49-4.12.62-5.79-.02-5.91,5.33-3.75,1.32-5.47,1.36-5.06,6.03-.02.29-.07.57-.22.81-6.39,3.49-4.48,8.24-4.36,14.59-.27,4.3.55,9.3-.52,13.39-.84,1.8-3.84,2.61-4.9,4.76-3.18,8.94,6,19.76,7.46,28.69,1.41,8.51-2.13,17.4-.43,25.84,1.02,4.74,6.27,6.26,8.83,2.09,2.54-4.61-2.14-11.38,1.31-15.93,1.62-1.01,7.51,9.38,9.58,11.42,2.74,4.09,1.64,10.43,1.3,15.29-22.31,15.47-62.25,17.42-71.48,48.18-6.69,20.78-8.4,43.16-13.3,64.17-14.71,38.49-12.91,24.35-2.28,62.55.75,15.76-10.63,16.04-20.09,23.96-4.74,3.03-6.5,8.64-10.7,12-9.32,5.49-19.33,12.34-23.99,22.7-13.5,41.39,26.73,56.96,61.16,55.8,13.67,1,28.26-5.14,41.29-4.71,4.95,3.31,10.58,5.19,16.56,6.19,3.41.86-1.01,6.49,3.3,6.83,9.35.11,33.36.55,47.33.49,14.95-1.06,32.95,1.37,40.12-1.52,1.09-1.84-1.25-5.04,1.37-5.75,4.5-1.05,9.42-1.82,13.28-4.24,1.96-1.07,3.95-2.89,6.3-2.42,38.2,9.97,114.33,9.6,100.38-48.87l-.06-.15Z" />
-      </svg>
-    </div>
-    <div class="temple-title">${cleanTempleName(p.temple_name) || '사찰명 정보 없음'}</div>
-    
-    ${middleContentHtml}
+  const isFlippedDefault = !audioPath;
+  const buddhaSvgPath = `M333.71,384.6c-4.53-11.19-14.6-18.4-24.48-24.16-4.42-3.28-6.11-9.09-10.97-12.18-4.38-4.3-11.25-6.32-15.87-10.3-11.34-14.13,3.97-29.14,4.2-44.55-.59-9.83-8.42-23.57-10.71-31.67-3.41-15.52-5.85-32.12-8.98-47.93-2.69-13.19-6.32-27.52-17.99-35.73-16.05-13.6-40.44-17.32-57.56-28.18-.56-.89-.55-1.99-.59-3.04.32-4.47-1.11-9.29,1.73-12.91,2.38-2.43,7.57-11.89,9.48-11.27,4.15,5.25-4.23,17.82,5.91,18.43,9.29-3.61,2.13-20.62,3.52-28.48.51-9.77,11.86-22.03,7.37-31.22-2.86-2.8-5.73-3.7-5-8.22.06-4.72-.3-10.17.26-14.7.79-4.06-1.2-7.31-4.67-9.25-.57-2.51.51-6.19-4.51-6.44-2.33-1.07.68-3.88-3.03-5.24-1.39-.52-3.07-.09-3.65-.5-1.09-1.27.14-4.07-1.4-5.61-1.36-1.96-4.81-.9-6.27-2-2.01-4.22,3.14-5.67-.3-11.33-.56-2.89-2.86-4.53-5.09-6.15-.97-1.08-1.33-3.01-2.65-3.93-.87-.66-2.03-.72-3.05-.98-2.59-1.23-4.31-4.53-6.82-6.13-5.67-2.03-9.97-.8-13.79,3.91-1.34,2.52-3.59,2.03-5.66,3.2-1.32.92-1.68,2.85-2.65,3.93-.84,1.07-2.48,1.53-3.46,2.68-1.36,2.54-3,5.39-2.77,8.42.21,1.85,2.6,4.89.74,6.45-1.9,1-6.01-.04-6.8,3.05-.66,1.59.22,3.55-.77,4.49-4.12.62-5.79-.02-5.91,5.33-3.75,1.32-5.47,1.36-5.06,6.03-.02.29-.07.57-.22.81-6.39,3.49-4.48,8.24-4.36,14.59-.27,4.3.55,9.3-.52,13.39-.84,1.8-3.84,2.61-4.9,4.76-3.18,8.94,6,19.76,7.46,28.69,1.41,8.51-2.13,17.4-.43,25.84,1.02,4.74,6.27,6.26,8.83,2.09,2.54-4.61-2.14-11.38,1.31-15.93,1.62-1.01,7.51,9.38,9.58,11.42,2.74,4.09,1.64,10.43,1.3,15.29-22.31,15.47-62.25,17.42-71.48,48.18-6.69,20.78-8.4,43.16-13.3,64.17-14.71,38.49-12.91,24.35-2.28,62.55.75,15.76-10.63,16.04-20.09,23.96-4.74,3.03-6.5,8.64-10.7,12-9.32,5.49-19.33,12.34-23.99,22.7-13.5,41.39,26.73,56.96,61.16,55.8,13.67,1,28.26-5.14,41.29-4.71,4.95,3.31,10.58,5.19,16.56,6.19,3.41.86-1.01,6.49,3.3,6.83,9.35.11,33.36.55,47.33.49,14.95-1.06,32.95,1.37-40.12-1.52,1.09-1.84-1.25-5.04,1.37-5.75,4.5-1.05,9.42-1.82,13.28-4.24,1.96-1.07,3.95-2.89,6.3-2.42,38.2,9.97,114.33,9.6,100.38-48.87l-.06-.15Z`;
 
-    ${audioPath ? `
-    <div class="audio-section">
-      <button type="button" class="audio-play-btn" id="audio-toggle-btn">        Play Bell Sound</button>
-    </div>
-    ` : ''}
-
-    <div class="time-section">
-      <div class="time-row">
-        <span class="time-label">현지 타종시각</span>
-        <span class="time-value">${p.bell_time_local || '정보 없음'}</span>
+  const philHtml = phil ? `
+    <div class="flip-back-inner">
+      <div class="flip-back-tradition">${phil.tradition}</div>
+      <div class="flip-back-quote">"${phil.quote}"</div>
+      <p class="flip-back-body">${phil.body}</p>
+      <div class="flip-back-keywords">
+        ${phil.keywords.map(k => `<span class="flip-keyword">${k}</span>`).join('')}
       </div>
-      <div class="time-row">
-        <span class="time-label">한국 표준시각</span>
-        <span class="time-value">${p.bell_time_korea || '정보 없음'}</span>
+    </div>
+  ` : `<div class="flip-back-inner"><p class="flip-back-body">불교 철학 정보가 준비 중입니다.</p></div>`;
+
+  detailContent.innerHTML = `
+    <div class="flip-card-wrapper ${isFlippedDefault ? 'flipped' : ''}" id="card-flip-wrapper">
+      <!-- FRONT FACE -->
+      <div class="flip-card-face flip-card-front">
+        <div class="flip-front-header">
+          <svg class="flip-front-buddha-icon left" viewBox="0 0 335.45 447.56">
+            <path d="${buddhaSvgPath}" />
+          </svg>
+          <div class="temple-title">${cleanTempleName(p.temple_name) || '사찰명 정보 없음'}</div>
+          <svg class="flip-front-buddha-icon right" viewBox="0 0 335.45 447.56">
+            <path d="${buddhaSvgPath}" />
+          </svg>
+        </div>
+
+        ${middleContentHtml}
+
+        ${audioPath ? `
+        <div class="audio-section">
+          <button type="button" class="audio-play-btn" id="audio-toggle-btn">Play Bell Sound</button>
+        </div>
+        ` : ''}
+
+        <div class="time-section">
+          <div class="time-row">
+            <span class="time-label">현지 타종시각</span>
+            <span class="time-value">${p.bell_time_local || '정보 없음'}</span>
+          </div>
+          <div class="time-row">
+            <span class="time-label">한국 표준시각</span>
+            <span class="time-value">${p.bell_time_korea || '정보 없음'}</span>
+          </div>
+        </div>
+
+        ${phil ? `
+        <button class="flip-trigger-btn" id="flip-to-back-btn" type="button">
+          불교 철학 보기 ↗
+        </button>` : ''}
+      </div>
+
+      <!-- BACK FACE -->
+      <div class="flip-card-face flip-card-back">
+        <div class="flip-back-header">
+          <svg class="flip-back-buddha-icon left" viewBox="0 0 335.45 447.56">
+            <path d="${buddhaSvgPath}" />
+          </svg>
+          <span class="flip-back-country">${p.country_ko || p.country_en}</span>
+          <svg class="flip-back-buddha-icon right" viewBox="0 0 335.45 447.56">
+            <path d="${buddhaSvgPath}" />
+          </svg>
+        </div>
+        ${philHtml}
+        <button class="flip-trigger-btn flip-trigger-back" id="flip-to-front-btn" type="button">
+          See Temple Bell Time &rarr;
+        </button>
       </div>
     </div>
   `;
+
+  // Connect Flip Card Event Listeners and Sync Height
+  setTimeout(() => {
+    const wrapper = detailContent.querySelector('#card-flip-wrapper');
+    const frontFace = detailContent.querySelector('.flip-card-front');
+    const backFace = detailContent.querySelector('.flip-card-back');
+    const flipToBackBtn = detailContent.querySelector('#flip-to-back-btn');
+    const flipToFrontBtn = detailContent.querySelector('#flip-to-front-btn');
+
+    if (wrapper && frontFace && backFace) {
+      function syncHeight() {
+        if (wrapper.classList.contains('flipped')) {
+          wrapper.style.height = backFace.offsetHeight + 'px';
+        } else {
+          wrapper.style.height = frontFace.offsetHeight + 'px';
+        }
+      }
+
+      syncHeight();
+      // Account for images or dynamic resources loading
+      setTimeout(syncHeight, 150);
+      setTimeout(syncHeight, 400);
+
+      if (flipToBackBtn) {
+        flipToBackBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          wrapper.classList.add('flipped');
+          syncHeight();
+          setTimeout(syncHeight, 100);
+          setTimeout(syncHeight, 300);
+          setTimeout(syncHeight, 800);
+        });
+      }
+
+      if (flipToFrontBtn) {
+        flipToFrontBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          wrapper.classList.remove('flipped');
+          syncHeight();
+          setTimeout(syncHeight, 100);
+          setTimeout(syncHeight, 300);
+          setTimeout(syncHeight, 800);
+        });
+      }
+    }
+  }, 50);
 
   // Trigger Wikimedia Commons direct URL resolution for any wiki file page images
   const wikiImages = detailContent.querySelectorAll('img[data-wiki-file]');
@@ -840,3 +1053,18 @@ function renderSideCard(p, coords) {
   // Activate with smooth slide & fade animation
   detailCard.classList.add('active');
 }
+
+if (map) {
+  map.on('idle', () => {
+    try {
+      console.log("MAP_IMAGES:", map.listImages());
+      console.log("MAP_LAYERS:", map.getStyle().layers.map(l => l.id));
+      const features = map.queryRenderedFeatures({ layers: ['bell-time'] });
+      console.log("FEAT_PROPS:", features.slice(0, 10).map(f => ({ id: f.id, prop_id: f.properties?.id, properties: f.properties })));
+    } catch (e) {
+      console.log("DEBUGLOG_ERR:", e.message);
+    }
+  });
+}
+
+
